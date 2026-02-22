@@ -304,19 +304,46 @@ export function generateSchedule(config: ScheduleConfig) {
   const totalElectiveSections = electiveCourses.reduce((sum, c) => sum + (c.sections || 0), 0);
   const totalElectiveDemand = studentCount * electiveSlotsPerStudent;
   
+  // 1. Pre-calculate total sections to ensure accurate enrollment distribution
+  // This prevents the "phantom student" bug where Math.ceil() over-allocates
+  let grandTotalSections = 0;
+  const courseSectionCounts = new Map<string, number>();
+
   electiveCourses.forEach(c => {
     let num = c.sections;
     const isPE = c.department.toLowerCase().includes("pe");
     const size = isPE ? 50 : (c.maxSize || maxClassSize);
+    
     if (!num) {
-      const share = totalElectiveSections > 0 ? (1/electiveCourses.length) : (1/electiveCourses.length);
+      const share = 1 / (electiveCourses.length || 1);
       num = Math.max(1, Math.ceil((totalElectiveDemand * share) / size));
     }
-    const enroll = Math.ceil(totalElectiveDemand / (totalElectiveSections || (num * electiveCourses.length))); 
+    courseSectionCounts.set(c.id, num);
+    grandTotalSections += num;
+  });
+
+  // 2. Calculate base seats and remainder
+  const safeTotalSections = grandTotalSections || 1;
+  const baseEnrollment = Math.floor(totalElectiveDemand / safeTotalSections);
+  let remainingSeats = totalElectiveDemand % safeTotalSections;
+
+  electiveCourses.forEach(c => {
+    const num = courseSectionCounts.get(c.id) || 1;
+    const isPE = c.department.toLowerCase().includes("pe");
+    const size = isPE ? 50 : (c.maxSize || maxClassSize);
+    
     for(let s=0; s<num; s++) {
+      // 3. Distribute remainder seats one by one until gone
+      let currentEnrollment = baseEnrollment;
+      if (remainingSeats > 0) {
+        currentEnrollment += 1;
+        remainingSeats -= 1;
+      }
+
       sections.push({
         id: `${c.id}-S${s+1}`, courseId: c.id, courseName: c.name,
-        sectionNum: s+1, maxSize: size, enrollment: Math.min(enroll, size),
+        sectionNum: s+1, maxSize: size, 
+        enrollment: Math.min(currentEnrollment, size), // Cap at maxSize
         department: c.department, roomType: c.roomType || "regular",
         isCore: false, teacher: null, room: null, period: null
       });
