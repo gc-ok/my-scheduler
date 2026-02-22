@@ -259,6 +259,11 @@ export function generateSchedule(config: ScheduleConfig) {
     logger.info(`Distributed teachers across multiple lunch periods: ${multiLunchPids.join(", ")}`);
   }
 
+  // --- BLOCK TEACHERS DURING RECESS ---
+  if (recessConfig.enabled) {
+    teachers.forEach(t => tracker.blockTeacher(t.id, toUniv("RECESS"), "RECESS"));
+  }
+
   let finalPlcGroups: any[] = []; 
 
   if (plcEnabled) {

@@ -17,11 +17,15 @@ interface WizardControllerProps {
 }
 
 export default function WizardController({ step, setStep, config, setConfig, onComplete }: WizardControllerProps) {
-  const stepsList = [
-    "School Type", "Schedule Type", "Bell Schedule", "Lunch", 
-    "Plan & PLC", "WIN Time", "Recess", "Data Input", 
-    config.inputMode === "csv" ? "CSV Upload" : "Quick Setup", 
-    "Constraints"
+  const showRecess = config.schoolType !== "high";
+
+  const allSteps = [
+    { id: 1, label: "School Type" }, { id: 2, label: "Schedule Type" }, { id: 3, label: "Bell Schedule" },
+    { id: 4, label: "Lunch" }, { id: 5, label: "Plan & PLC" }, { id: 6, label: "WIN Time" },
+    ...(showRecess ? [{ id: 7, label: "Recess" }] : []),
+    { id: 8, label: "Data Input" },
+    { id: 9, label: config.inputMode === "csv" ? "CSV Upload" : "Quick Setup" },
+    { id: 10, label: "Constraints" }
   ];
 
   return (
@@ -33,16 +37,16 @@ export default function WizardController({ step, setStep, config, setConfig, onC
       {step > 0 && (
         <div style={{ background: COLORS.white, padding: "10px 24px", borderBottom: `1px solid ${COLORS.lightGray}`, overflowX: "auto" }}>
           <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-            {stepsList.map((label, i) => (
+            {allSteps.map((s, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center" }}>
-                <div onClick={() => i + 1 <= step && setStep(i + 1)} style={{
+                <div onClick={() => s.id <= step && setStep(s.id)} style={{
                   padding: "4px 10px", borderRadius: 20, fontSize: 12, whiteSpace: "nowrap",
-                  cursor: i + 1 <= step ? "pointer" : "default",
-                  background: i + 1 === step ? COLORS.primary : i + 1 < step ? COLORS.accentLight : COLORS.lightGray,
-                  color: i + 1 === step ? COLORS.white : i + 1 < step ? COLORS.primary : COLORS.midGray,
-                  fontWeight: i + 1 === step ? 700 : 500,
-                }}>{label}</div>
-                {i < stepsList.length - 1 && <div style={{ width: 12, height: 2, background: i + 1 < step ? COLORS.accent : COLORS.lightGray, margin: "0 2px" }} />}
+                  cursor: s.id <= step ? "pointer" : "default",
+                  background: s.id === step ? COLORS.primary : s.id < step ? COLORS.accentLight : COLORS.lightGray,
+                  color: s.id === step ? COLORS.white : s.id < step ? COLORS.primary : COLORS.midGray,
+                  fontWeight: s.id === step ? 700 : 500,
+                }}>{s.label}</div>
+                {i < allSteps.length - 1 && <div style={{ width: 12, height: 2, background: s.id < step ? COLORS.accent : COLORS.lightGray, margin: "0 2px" }} />}
               </div>
             ))}
           </div>
@@ -73,9 +77,9 @@ export default function WizardController({ step, setStep, config, setConfig, onC
         {step === 3 && <BellScheduleStep config={config} setConfig={setConfig} onNext={() => setStep(4)} onBack={() => setStep(2)} />}
         {step === 4 && <LunchStep config={config} setConfig={setConfig} onNext={() => setStep(5)} onBack={() => setStep(3)} />}
         {step === 5 && <PlanPLCStep config={config} setConfig={setConfig} onNext={() => setStep(6)} onBack={() => setStep(4)} />}
-        {step === 6 && <WINTimeStep config={config} setConfig={setConfig} onNext={() => setStep(7)} onBack={() => setStep(5)} />}
-        {step === 7 && <RecessStep config={config} setConfig={setConfig} onNext={() => setStep(8)} onBack={() => setStep(6)} />}
-        {step === 8 && <DataInputStep config={config} setConfig={setConfig} onNext={() => setStep(9)} onBack={() => setStep(7)} />}
+        {step === 6 && <WINTimeStep config={config} setConfig={setConfig} onNext={() => setStep(showRecess ? 7 : 8)} onBack={() => setStep(5)} />}
+        {step === 7 && showRecess && <RecessStep config={config} setConfig={setConfig} onNext={() => setStep(8)} onBack={() => setStep(6)} />}
+        {step === 8 && <DataInputStep config={config} setConfig={setConfig} onNext={() => setStep(9)} onBack={() => setStep(showRecess ? 7 : 6)} />}
         {step === 9 && config.inputMode === "csv" && <CSVUploadStep config={config} setConfig={setConfig} onNext={() => setStep(10)} onBack={() => setStep(8)} />}
         {step === 9 && config.inputMode !== "csv" && <GenericInputStep config={config} setConfig={setConfig} onNext={() => setStep(10)} onBack={() => setStep(8)} />}
         {step === 10 && <ConstraintsStep config={config} setConfig={setConfig} onNext={onComplete} onBack={() => setStep(9)} />}

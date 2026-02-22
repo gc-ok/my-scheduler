@@ -26,6 +26,11 @@ export function buildScheduleConfig(config: any): ScheduleConfig {
       afterPeriod: config.winAfterPeriod || 1,
       winDuration: config.winDuration || 30,
     },
+    recessConfig: {
+      enabled: config.recessConfig?.enabled || false,
+      duration: config.recessConfig?.duration || 20,
+      afterPeriod: config.recessConfig?.afterPeriod || 2,
+    },
     teachers: config.teachers || [],
     courses: config.courses || [],
     rooms: config.rooms || [],
