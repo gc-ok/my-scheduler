@@ -17,7 +17,7 @@ interface WizardControllerProps {
 }
 
 export default function WizardController({ step, setStep, config, setConfig, onComplete }: WizardControllerProps) {
-  const showRecess = config.schoolType !== "high";
+  const showRecess = !["high", "6_12"].includes(config.schoolType);
 
   const allSteps = [
     { id: 1, label: "School Type" }, { id: 2, label: "Schedule Type" }, { id: 3, label: "Bell Schedule" },

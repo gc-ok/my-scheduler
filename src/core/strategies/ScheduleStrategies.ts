@@ -40,7 +40,8 @@ export abstract class BaseStrategy {
   }
 
   execute(sections: Section[], periodList: Period[], rooms: Room[]): any[] {
-    const timeSlots = this.generateTimeSlots(periodList);
+    const schedulablePeriods = periodList.filter(p => p.id !== "WIN" && p.type !== "win" && p.type !== "recess");
+    const timeSlots = this.generateTimeSlots(schedulablePeriods);
     timeSlots.forEach(slot => this.secsInPeriod[slot] = 0);
 
     const placementOrder = [...sections].filter(s => !s.locked && !s.hasConflict).sort((a,b) => {
@@ -203,9 +204,7 @@ export abstract class BaseStrategy {
 
 export class StandardStrategy extends BaseStrategy {
   generateTimeSlots(periodList: Period[]): string[] {
-    return periodList
-      .filter(p => p.id !== "WIN" && p.type !== "win" && p.type !== "recess")
-      .map(p => `FY-ALL-${p.id}`);
+    return periodList.map(p => `FY-ALL-${p.id}`);
   }
 
   calculateCustomCost(sec: Section, slot: string, sections: Section[]): { cost: number; reasons: string[]; } {
@@ -221,7 +220,6 @@ export class ABStrategy extends BaseStrategy {
   generateTimeSlots(periodList: Period[]): string[] {
     const timeSlots: string[] = [];
     periodList.forEach(p => {
-      if (p.id === "WIN" || p.type === "win" || p.type === "recess") return;
       timeSlots.push(`FY-A-${p.id}`, `FY-B-${p.id}`);
     });
     return timeSlots;
@@ -240,7 +238,6 @@ export class Block4x4Strategy extends BaseStrategy {
   generateTimeSlots(periodList: Period[]): string[] {
     const timeSlots: string[] = [];
     periodList.forEach(p => {
-      if (p.id === "WIN" || p.type === "win" || p.type === "recess") return;
       timeSlots.push(`S1-ALL-${p.id}`, `S2-ALL-${p.id}`);
     });
     return timeSlots;
@@ -266,7 +263,6 @@ export class TrimesterStrategy extends BaseStrategy {
   generateTimeSlots(periodList: Period[]): string[] {
     const timeSlots: string[] = [];
     periodList.forEach(p => {
-      if (p.id === "WIN" || p.type === "win" || p.type === "recess") return;
       timeSlots.push(`T1-ALL-${p.id}`, `T2-ALL-${p.id}`, `T3-ALL-${p.id}`);
     });
     return timeSlots;

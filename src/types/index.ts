@@ -89,6 +89,12 @@ export interface Period {
   duration: number;
 }
 
+export interface RecessConfig {
+  enabled: boolean;
+  duration: number;
+  afterPeriod: number | string;
+}
+
 // A generic Config interface based on your engine.js
 export interface ScheduleConfig {
   inputMode?: string;
@@ -116,6 +122,8 @@ export interface ScheduleConfig {
     afterPeriod?: number | string;
     winDuration?: number;
   };
+  
+  recessConfig?: RecessConfig;
   
   teachers?: Teacher[];
   courses?: Course[];
