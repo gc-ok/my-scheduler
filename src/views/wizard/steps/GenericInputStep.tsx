@@ -24,14 +24,33 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
   
   const defaultLoad = isBlock ? 6 : (isTri ? 12 : 5);
 
-  const [depts, setDepts] = useState<any[]>(c.departments || [
-    { id: "english", name: "English/ELA", teacherCount: 4, required: true, roomType: "regular", teacherNames: [] },
-    { id: "math", name: "Math", teacherCount: 4, required: true, roomType: "regular", teacherNames: [] },
-    { id: "science", name: "Science", teacherCount: 3, required: true, roomType: "lab", teacherNames: [] },
-    { id: "social", name: "Social Studies", teacherCount: 3, required: true, roomType: "regular", teacherNames: [] },
-    { id: "pe", name: "PE", teacherCount: 2, required: false, roomType: "gym", teacherNames: [] },
-    { id: "elective", name: "Electives", teacherCount: 4, required: false, roomType: "regular", teacherNames: [] },
-  ]);
+  // DYNAMIC DEFAULTS BASED ON SCHOOL TYPE
+  const getDefaults = () => {
+    if (c.departments) return c.departments;
+    
+    if (c.schoolType === "elementary") {
+      return [
+        { id: "k", name: "Kindergarten", teacherCount: 3, required: true, roomType: "regular", teacherNames: [] },
+        { id: "gr1", name: "Grade 1", teacherCount: 3, required: true, roomType: "regular", teacherNames: [] },
+        { id: "gr2", name: "Grade 2", teacherCount: 3, required: true, roomType: "regular", teacherNames: [] },
+        { id: "gr3", name: "Grade 3", teacherCount: 3, required: true, roomType: "regular", teacherNames: [] },
+        { id: "gr4", name: "Grade 4", teacherCount: 3, required: true, roomType: "regular", teacherNames: [] },
+        { id: "gr5", name: "Grade 5", teacherCount: 3, required: true, roomType: "regular", teacherNames: [] },
+        { id: "specials", name: "Specials (Art/Music)", teacherCount: 2, required: false, roomType: "regular", teacherNames: [] },
+        { id: "pe", name: "PE", teacherCount: 1, required: false, roomType: "gym", teacherNames: [] },
+      ];
+    }
+    return [
+      { id: "english", name: "English/ELA", teacherCount: 4, required: true, roomType: "regular", teacherNames: [] },
+      { id: "math", name: "Math", teacherCount: 4, required: true, roomType: "regular", teacherNames: [] },
+      { id: "science", name: "Science", teacherCount: 3, required: true, roomType: "lab", teacherNames: [] },
+      { id: "social", name: "Social Studies", teacherCount: 3, required: true, roomType: "regular", teacherNames: [] },
+      { id: "pe", name: "PE", teacherCount: 2, required: false, roomType: "gym", teacherNames: [] },
+      { id: "elective", name: "Electives", teacherCount: 4, required: false, roomType: "regular", teacherNames: [] },
+    ];
+  };
+
+  const [depts, setDepts] = useState<any[]>(getDefaults());
   const [sc, setSc] = useState(c.studentCount ?? 800);
   const [rc, setRc] = useState(c.roomCount ?? 25);
   const [lc, setLc] = useState(c.labCount ?? 2);

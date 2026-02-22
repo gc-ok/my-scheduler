@@ -72,13 +72,16 @@ const EditSectionModal = ({ section, schedule, config, onClose, onSave, onDelete
           <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.textLight, textTransform: "uppercase" }}>Course Name
             <input name="courseName" value={formData.courseName} onChange={handleChange} style={inputStyle} />
           </label>
+          <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.textLight, textTransform: "uppercase" }}>Cohort / Homeroom (Opt)
+            <input name="cohort" value={(formData as any).cohort || ""} onChange={handleChange} style={inputStyle} placeholder="e.g. 5A, Red Team, or Grade 1" />
+          </label>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             
             {/* --- DYNAMIC TERM-AWARE DROPDOWN --- */}
             <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.textLight, textTransform: "uppercase" }}>Period
               <select name="period" value={formData.period || ""} onChange={handleChange} style={inputStyle}>
                 {(schedule.periodList as Period[]).map(p => {
-                  if (p.type === "win" || p.type === "unit_lunch") {
+                  if (p.type === "win" || p.type === "unit_lunch" || p.type === "recess") {
                     return <option key={p.id} value={p.id}>{p.label}</option>;
                   }
                   if (config?.scheduleType === "ab_block") {

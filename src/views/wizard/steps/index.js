@@ -5,6 +5,7 @@ export { BellScheduleStep } from "./BellScheduleStep.jsx";
 export { LunchStep } from "./LunchStep.jsx";
 export { PlanPLCStep } from "./PlanPLCStep.jsx";
 export { WINTimeStep } from "./WINTimeStep.jsx";
+export { RecessStep } from "./RecessStep";
 export { DataInputStep } from "./DataInputStep.jsx";
 export { GenericInputStep } from "./GenericInputStep.jsx";
 export { CSVUploadStep } from "./CSVUploadStep.jsx";

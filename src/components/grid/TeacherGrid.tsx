@@ -10,7 +10,7 @@ const getDeptColor = (deptName: string) => {
 };
 
 export const PeriodHeader = ({ p, isLast }: { p: Period; isLast: boolean }) => {
-  const bgMap: Record<string, string> = { class: COLORS.primary, split_lunch: COLORS.secondary, multi_lunch: COLORS.secondary, unit_lunch: COLORS.warning, win: COLORS.darkGray };
+  const bgMap: Record<string, string> = { class: COLORS.primary, split_lunch: COLORS.secondary, multi_lunch: COLORS.secondary, unit_lunch: COLORS.warning, win: COLORS.darkGray, recess: COLORS.success };
   const safeType = p.type || "class"; // Prevent .replace() crash
   return (
     <div style={{ padding: "6px 4px", textAlign: "center", fontWeight: 700, fontSize: 11, color: COLORS.white, borderRadius: isLast ? "0 8px 0 0" : 0, background: bgMap[safeType] || COLORS.primary, display: "flex", flexDirection: "column", justifyContent: "center", minHeight: 54 }}>
@@ -61,8 +61,9 @@ export default function TeacherGrid({ schedule, config, fDept, setEditSection, o
   const RenderCell = ({ s, status, p, t, dayLabel, termCount }: { s?: Section; status: string; p: Period; t: Teacher; dayLabel: string; termCount: number }) => {
     const isLunch = status === "LUNCH";
     const isPLC = status === "PLC";
+    const isRecess = p.type === "recess";
     const isBlocked = status === "BLOCKED";
-    const isNT = p.type === "unit_lunch" || p.type === "win";
+    const isNT = p.type === "unit_lunch" || p.type === "win" || p.type === "recess";
     const isCoTeaching = s && s.coTeacher === t.id;
 
     const heightPct = termCount > 1 ? `${100 / termCount}%` : "100%";
@@ -98,6 +99,7 @@ export default function TeacherGrid({ schedule, config, fDept, setEditSection, o
     
     if (isBlocked) return <div style={{ ...baseStyle, color: COLORS.danger, fontSize: 9, fontWeight: 700, alignItems: "center", justifyContent: "center", background: `${COLORS.danger}15` }}>🚫 {dayLabel}</div>;
     if (isLunch) return <div style={{ ...baseStyle, color: COLORS.warning, fontWeight: 700, fontSize: 10, alignItems: "center", justifyContent: "center" }}>🥗 LUNCH</div>;
+    if (isRecess) return <div style={{ ...baseStyle, color: COLORS.success, fontWeight: 700, fontSize: 10, alignItems: "center", justifyContent: "center", background: "#F0FDF4" }}>🛝 RECESS</div>;
     if (isNT) return <div style={{ ...baseStyle, color: COLORS.midGray, fontSize: 9, alignItems: "center", justifyContent: "center" }}>{(p.type||"").toUpperCase()}</div>;
     if (isPLC) return <div style={{ ...baseStyle, color: COLORS.secondary, fontSize: 9, fontWeight: 600, alignItems: "center", justifyContent: "center", background: `${COLORS.secondary}15` }}>🤝 PLC {dayLabel}</div>;
 

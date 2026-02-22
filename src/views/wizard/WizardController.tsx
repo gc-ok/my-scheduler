@@ -4,7 +4,7 @@ import { Logo, Btn, Card } from "../../components/ui/CoreUI";
 
 import { 
   SchoolTypeStep, ScheduleTypeStep, BellScheduleStep, LunchStep, 
-  PlanPLCStep, WINTimeStep, DataInputStep, GenericInputStep, 
+  PlanPLCStep, WINTimeStep, RecessStep, DataInputStep, GenericInputStep, 
   CSVUploadStep, ConstraintsStep 
 } from "./steps"; 
 
@@ -19,7 +19,7 @@ interface WizardControllerProps {
 export default function WizardController({ step, setStep, config, setConfig, onComplete }: WizardControllerProps) {
   const stepsList = [
     "School Type", "Schedule Type", "Bell Schedule", "Lunch", 
-    "Plan & PLC", "WIN Time", "Data Input", 
+    "Plan & PLC", "WIN Time", "Recess", "Data Input", 
     config.inputMode === "csv" ? "CSV Upload" : "Quick Setup", 
     "Constraints"
   ];
@@ -74,10 +74,11 @@ export default function WizardController({ step, setStep, config, setConfig, onC
         {step === 4 && <LunchStep config={config} setConfig={setConfig} onNext={() => setStep(5)} onBack={() => setStep(3)} />}
         {step === 5 && <PlanPLCStep config={config} setConfig={setConfig} onNext={() => setStep(6)} onBack={() => setStep(4)} />}
         {step === 6 && <WINTimeStep config={config} setConfig={setConfig} onNext={() => setStep(7)} onBack={() => setStep(5)} />}
-        {step === 7 && <DataInputStep config={config} setConfig={setConfig} onNext={() => setStep(8)} onBack={() => setStep(6)} />}
-        {step === 8 && config.inputMode === "csv" && <CSVUploadStep config={config} setConfig={setConfig} onNext={() => setStep(9)} onBack={() => setStep(7)} />}
-        {step === 8 && config.inputMode !== "csv" && <GenericInputStep config={config} setConfig={setConfig} onNext={() => setStep(9)} onBack={() => setStep(7)} />}
-        {step === 9 && <ConstraintsStep config={config} setConfig={setConfig} onNext={onComplete} onBack={() => setStep(8)} />}
+        {step === 7 && <RecessStep config={config} setConfig={setConfig} onNext={() => setStep(8)} onBack={() => setStep(6)} />}
+        {step === 8 && <DataInputStep config={config} setConfig={setConfig} onNext={() => setStep(9)} onBack={() => setStep(7)} />}
+        {step === 9 && config.inputMode === "csv" && <CSVUploadStep config={config} setConfig={setConfig} onNext={() => setStep(10)} onBack={() => setStep(8)} />}
+        {step === 9 && config.inputMode !== "csv" && <GenericInputStep config={config} setConfig={setConfig} onNext={() => setStep(10)} onBack={() => setStep(8)} />}
+        {step === 10 && <ConstraintsStep config={config} setConfig={setConfig} onNext={onComplete} onBack={() => setStep(9)} />}
       </div>
     </>
   );

@@ -119,9 +119,10 @@ export default function MasterGrid({ schedule, config, fSecs, dragItem, onDragSt
           const isTeaching = p.type === "class" || p.type === "split_lunch" || p.type === "multi_lunch";
           if (!isTeaching) {
             const isLunch = p.type === "unit_lunch";
+            const isRecess = p.type === "recess";
             return (
-              <div key={`sa-${p.id}`} onClick={() => setEditSection({ id: `manual-${Date.now()}`, courseName: "New Activity", period: p.id, department: "General", enrollment: studentCount, maxSize: studentCount, locked: true } as Section)} style={{ padding: "3px 4px", borderBottom: `2px solid ${COLORS.primary}`, borderRight: `1px solid ${COLORS.lightGray}`, background: isLunch ? `${COLORS.warning}15` : COLORS.offWhite, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                <span style={{ fontSize: 9, color: isLunch ? COLORS.warning : COLORS.midGray, fontWeight: 600 }}>{isLunch ? `🥗 All ${studentCount}` : `${p.type.toUpperCase()} +`}</span>
+              <div key={`sa-${p.id}`} onClick={() => setEditSection({ id: `manual-${Date.now()}`, courseName: "New Activity", period: p.id, department: "General", enrollment: studentCount, maxSize: studentCount, locked: true } as Section)} style={{ padding: "3px 4px", borderBottom: `2px solid ${COLORS.primary}`, borderRight: `1px solid ${COLORS.lightGray}`, background: isLunch ? `${COLORS.warning}15` : isRecess ? "#F0FDF4" : COLORS.offWhite, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                <span style={{ fontSize: 9, color: isLunch ? COLORS.warning : isRecess ? COLORS.success : COLORS.midGray, fontWeight: 600 }}>{isLunch ? `🥗 All ${studentCount}` : isRecess ? "🛝 Recess" : `${p.type.toUpperCase()} +`}</span>
               </div>
             );
           }
@@ -147,7 +148,7 @@ export default function MasterGrid({ schedule, config, fSecs, dragItem, onDragSt
                 if (config?.scheduleType === "trimester") matchPids.push(`T1-${p.id}`, `T2-${p.id}`, `T3-${p.id}`);
 
                 const ps = cs.filter(s => matchPids.includes(s.period!));
-                const isNT = p.type === "unit_lunch" || p.type === "win";
+                const isNT = p.type === "unit_lunch" || p.type === "win" || p.type === "recess";
                 
                 return (
                   <div key={`${cid}-${p.id}`} onDragOver={e => !isNT && e.preventDefault()} onDrop={() => !isNT && onDrop(p.id)} style={{ padding: 3, minHeight: 44, borderBottom: `1px solid ${COLORS.lightGray}`, borderRight: `1px solid ${COLORS.lightGray}`, background: isNT ? "#F0F0F0" : dragItem ? `${COLORS.accentLight}30` : COLORS.white }}>

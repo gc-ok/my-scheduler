@@ -67,6 +67,7 @@ export function generateSchedule(config: ScheduleConfig) {
   const {
     teachers = [], courses = [], rooms = [], constraints = [],
     lunchConfig = {}, winConfig = {}, plcEnabled = false,
+    recessConfig = {}, // NEW: Destructure recess config
     studentCount = 800, maxClassSize = 30, planPeriodsPerDay,
     schoolStart = "08:00", schoolEnd = "15:00",
     passingTime = 5, scheduleMode = "period_length",
@@ -137,6 +138,35 @@ export function generateSchedule(config: ScheduleConfig) {
     }
   }
 
+  // --- INJECT "RECESS" (Elementary/Middle Support) ---
+  if (recessConfig.enabled) {
+    const insertAfterId = Number(recessConfig.afterPeriod);
+    const insertIndex = periodList.findIndex(p => p.id === insertAfterId);
+
+    if (insertIndex !== -1) {
+      const recessDur = Number(recessConfig.duration) || 20;
+      const prevPeriod = periodList[insertIndex];
+      const recessStartMin = prevPeriod.endMin + passingTime;
+      const recessEndMin = recessStartMin + recessDur;
+
+      const recessPeriod: Period = {
+        id: "RECESS", label: "Recess", type: "recess",
+        startMin: recessStartMin, endMin: recessEndMin,
+        startTime: toTime(recessStartMin), endTime: toTime(recessEndMin),
+        duration: recessDur
+      };
+
+      let currentMin = recessEndMin + passingTime;
+      for (let i = insertIndex + 1; i < periodList.length; i++) {
+        const p = periodList[i];
+        p.startMin = currentMin; p.endMin = currentMin + p.duration;
+        p.startTime = toTime(currentMin); p.endTime = toTime(currentMin + p.duration);
+        currentMin += p.duration + passingTime;
+      }
+      periodList.splice(insertIndex + 1, 0, recessPeriod);
+    }
+  }
+
   const lunchStyle = lunchConfig.style || "unit";
   const lunchPid = lunchConfig.lunchPeriod; 
   const multiLunchPids = lunchConfig.lunchPeriods || []; 
@@ -147,6 +177,7 @@ export function generateSchedule(config: ScheduleConfig) {
   const numWaves = lunchConfig.numWaves || 3;
   const minClassTime = lunchConfig.minClassTime || 30;
   const winPid = winConfig.enabled ? (winConfig.model === "separate" ? "WIN" : winConfig.winPeriod) : null;
+  const recessPid = recessConfig.enabled ? "RECESS" : null;
 
   periodList = periodList.map(p => {
     let type = p.type || "class";
@@ -162,6 +193,8 @@ export function generateSchedule(config: ScheduleConfig) {
       type = "multi_lunch";
     } else if (p.id === winPid) {
       type = "win";
+    } else if (p.id === recessPid || p.type === "recess") {
+      type = "recess";
     }
     return { ...p, type };
   });
@@ -171,7 +204,10 @@ export function generateSchedule(config: ScheduleConfig) {
   const numTeachingPeriods = teachingPeriodIds.length;
 
   const safePlanPeriods = Number(planPeriodsPerDay) || 1;
-  const effectiveSlots = isSplitLunch ? numTeachingPeriods : numTeachingPeriods - 1; 
+  
+  // UPDATE: Subtract Recess from effective slots so teachers aren't expected to teach during it
+  const recessCount = periodList.filter(p => p.type === "recess").length;
+  const effectiveSlots = (isSplitLunch ? numTeachingPeriods : numTeachingPeriods - 1) - recessCount; 
   
   let dailyMaxLoad = Math.max(1, effectiveSlots - safePlanPeriods - (plcEnabled ? 1 : 0));
   let maxLoad = config.scheduleType === "ab_block" ? (dailyMaxLoad * 2) : dailyMaxLoad;
@@ -469,7 +505,7 @@ export function generateSchedule(config: ScheduleConfig) {
     } else if (isMultiPeriod && multiLunchPids.includes(pid as string | number)) {
       atLunchCount = Math.floor(studentCount / multiLunchPids.length);
       unaccounted = Math.max(0, studentCount - seats - atLunchCount);
-    } else if (pid === "WIN") {
+    } else if (pid === "WIN" || pid === "RECESS" || pObj.type === "recess") {
       unaccounted = 0;
     }
 
@@ -478,7 +514,7 @@ export function generateSchedule(config: ScheduleConfig) {
       sectionCount: sections.filter(s => s.period && String(s.period).includes(`-${pid}`) && !s.hasConflict).length
     };
 
-    if(unaccounted > 50 && pObj.type !== "unit_lunch" && pObj.type !== "win") {
+    if(unaccounted > 50 && pObj.type !== "unit_lunch" && pObj.type !== "win" && pObj.type !== "recess") {
       conflicts.push({ type: "coverage", message: `Period ${pid}: ${unaccounted} students unaccounted for on average.` });
     }
   });
@@ -503,7 +539,7 @@ export function generateSchedule(config: ScheduleConfig) {
     if (!univId) return null;
     const strId = String(univId);
     
-    if (strId === "WIN" || strId === "LUNCH" || strId === "PLC" || strId === "BLOCKED") return strId;
+    if (strId === "WIN" || strId === "RECESS" || strId === "LUNCH" || strId === "PLC" || strId === "BLOCKED") return strId;
     
     if (strId.startsWith("FY-ALL-")) {
       const raw = strId.replace("FY-ALL-", "");
