@@ -27,6 +27,7 @@ export function CSVUploadStep({ config: c, setConfig, onNext, onBack }: StepProp
     { id: "teachers", label: "Teachers", fields: ["name","department","isFloater"] },
     { id: "courses", label: "Courses", fields: ["name","department","maxSize","sections","required"] },
     { id: "rooms", label: "Rooms", fields: ["name","type","capacity"] },
+    { id: "cohorts", label: "Cohorts", fields: ["name","gradeLevel","teacherName","studentCount"] },
   ];
   const handleFile = (type: string, e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if (!f) return;
@@ -47,6 +48,18 @@ export function CSVUploadStep({ config: c, setConfig, onNext, onBack }: StepProp
   };
   const cont = () => {
     const teachers: any[] = [], courses: any[] = [], rooms: any[] = [];
+    const cohorts: any[] = [];
+
+    if (pd.cohorts?.rows) pd.cohorts.rows.forEach((r, i) => {
+      const m = cm.cohorts || {};
+      cohorts.push({
+        id: `coh_${i}`, name: m.name !== undefined ? r[m.name] : `Cohort ${i+1}`,
+        gradeLevel: m.gradeLevel !== undefined ? r[m.gradeLevel] : "1",
+        teacherName: m.teacherName !== undefined ? r[m.teacherName] : `Teacher ${i+1}`,
+        studentCount: m.studentCount !== undefined ? parseInt(r[m.studentCount]) || 25 : 25
+      });
+    });
+
     if (pd.teachers?.rows) pd.teachers.rows.forEach((r, i) => { 
       const m = cm.teachers || {}; 
       teachers.push({ 
@@ -59,7 +72,7 @@ export function CSVUploadStep({ config: c, setConfig, onNext, onBack }: StepProp
     if (pd.courses?.rows) pd.courses.rows.forEach((r, i) => { const m = cm.courses || {}; courses.push({ id: `c_${i}`, name: m.name !== undefined ? r[m.name] : `Course ${i+1}`, department: m.department !== undefined ? r[m.department] : "general", maxSize: m.maxSize !== undefined ? parseInt(r[m.maxSize]) || 30 : 30, sections: m.sections !== undefined ? parseInt(r[m.sections]) || 1 : 1, required: m.required !== undefined ? r[m.required]?.toLowerCase() === "yes" : true }); });
     if (pd.rooms?.rows) pd.rooms.rows.forEach((r, i) => { const m = cm.rooms || {}; rooms.push({ id: `r_${i}`, name: m.name !== undefined ? r[m.name] : `Room ${i+1}`, type: m.type !== undefined ? r[m.type] : "regular", capacity: m.capacity !== undefined ? parseInt(r[m.capacity]) || 30 : 30 }); });
     else { for (let i = 0; i < 20; i++) rooms.push({ id: `r_${i}`, name: `Room ${101+i}`, type: "regular", capacity: 30 }); rooms.push({ id: "lab_0", name: "Lab 1", type: "lab", capacity: 30 }); rooms.push({ id: "lab_1", name: "Lab 2", type: "lab", capacity: 30 }); }
-    setConfig({ ...c, teachers, courses, rooms, students: { count: 300 } }); onNext();
+    setConfig({ ...c, teachers, courses, rooms, cohorts, students: { count: 300 } }); onNext();
   };
   const ft = fts.find(f => f.id === af)!;
   return (

@@ -9,8 +9,8 @@ export const validateConfig = (config: Partial<ScheduleConfig>): string[] => {
     errors.push("No teachers defined. Please add teachers in the 'Teachers' step.");
   }
 
-  if (!config.courses || config.courses.length === 0) {
-    errors.push("No courses defined. Please add courses in the 'Data Input' step.");
+  if ((!config.courses || config.courses.length === 0) && (!config.cohorts || config.cohorts.length === 0)) {
+    errors.push("No courses or cohorts defined. Please add data in the 'Data Input' step.");
   }
 
   // 2. Bell Schedule Validation

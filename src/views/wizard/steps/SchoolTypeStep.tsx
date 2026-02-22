@@ -12,7 +12,7 @@ export function SchoolTypeStep({ config: c, setConfig, onNext }: StepProps) {
   const types = [
     { id: "elementary", l: "Elementary School", i: "🏫", d: "Grades K-5/6. Self-contained classrooms with specials rotation." },
     { id: "middle", l: "Middle School", i: "🏛️", d: "Grades 6-8. Students rotate between classrooms." },
-    { id: "high", l: "High School", i: "🎓", d: "Grades 9-12. Full departmentalized scheduling." },
+    { id: "high", l: "High School", i: "🎓", d: "Grades 9-12. Course-based scheduling." },
     { id: "k8", l: "K-8 School", i: "📚", d: "Combined elementary and middle." },
     { id: "k12", l: "K-12 School", i: "🏫🎓", d: "All grades. Complex mixed structure." },
     { id: "6_12", l: "6-12 School", i: "🏛️🎓", d: "Combined middle and high school." },

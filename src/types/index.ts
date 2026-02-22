@@ -6,6 +6,7 @@ export interface Teacher {
   departments?: string[];
   isFloater?: boolean;
   planPeriods?: number;
+  travelTime?: number; // Minutes needed to travel between campuses/buildings
 }
 
 export interface Room {
@@ -13,6 +14,15 @@ export interface Room {
   name: string;
   type: "regular" | "lab" | "gym" | string;
   capacity?: number;
+}
+
+export interface Cohort {
+  id: string;
+  name: string;
+  gradeLevel: string;
+  teacherId: string;
+  teacherName?: string;
+  studentCount: number;
 }
 
 export interface Course {
@@ -96,6 +106,7 @@ export interface Period {
   startTime: string;
   endTime: string;
   duration: number;
+  days?: number[]; // 1=Mon, 2=Tue, ... (For hybrid/rotating schedules)
 }
 
 export interface RecessConfig {
@@ -136,6 +147,7 @@ export interface ScheduleConfig {
   
   teachers?: Teacher[];
   courses?: Course[];
+  cohorts?: Cohort[]; // NEW: For Elementary/Cohort-based scheduling
   rooms?: Room[];
   constraints?: Constraint[]; 
   plcGroups?: PlcGroup[];

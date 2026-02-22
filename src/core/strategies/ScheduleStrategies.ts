@@ -30,13 +30,50 @@ export abstract class BaseStrategy {
   abstract generateTimeSlots(periodList: Period[]): string[];
   
   // Hook for term-specific load checking (e.g. "S1", "T2", or "FY")
-  getLoadTerm(slot: string): string {
+  getLoadTerm(_slot: string): string {
     return "FY";
   }
 
   // Hook for strategy-specific costs (e.g. term balancing)
-  calculateCustomCost(sec: Section, slot: string, sections: Section[]): { cost: number, reasons: string[] } {
+  calculateCustomCost(_sec: Section, _slot: string, _sections: Section[]): { cost: number, reasons: string[] } {
     return { cost: 0, reasons: [] };
+  }
+
+  // NEW: Check if teacher has enough travel time between periods
+  checkTravelTime(teacherId: string | null, slotId: string, periodList: Period[]): boolean {
+    if (!teacherId) return true;
+    const teacher = this.config.teachers?.find(t => t.id === teacherId);
+    if (!teacher || !teacher.travelTime) return true;
+    
+    const passing = this.config.passingTime || 5;
+    if (teacher.travelTime <= passing) return true;
+
+    // Extract Period ID and Prefix from Slot ID (e.g., "FY-A-1" -> prefix="FY-A-", id=1)
+    const lastDash = slotId.lastIndexOf('-');
+    if (lastDash === -1) return true;
+    
+    const prefix = slotId.substring(0, lastDash + 1);
+    const pIdStr = slotId.substring(lastDash + 1);
+    const pId = isNaN(Number(pIdStr)) ? pIdStr : Number(pIdStr);
+
+    const pIndex = periodList.findIndex(p => p.id == pId);
+    if (pIndex === -1) return true;
+
+    // Check Previous Period for conflict
+    if (pIndex > 0) {
+      const prevSlot = `${prefix}${periodList[pIndex - 1].id}`;
+      // If teacher is NOT available in previous slot, it means they are booked/blocked.
+      // Since travel time > passing time, they cannot be in this current slot.
+      if (!this.tracker.isTeacherAvailable(teacherId, prevSlot)) return false;
+    }
+
+    // Check Next Period for conflict
+    if (pIndex < periodList.length - 1) {
+      const nextSlot = `${prefix}${periodList[pIndex + 1].id}`;
+      if (!this.tracker.isTeacherAvailable(teacherId, nextSlot)) return false;
+    }
+
+    return true;
   }
 
   execute(sections: Section[], periodList: Period[], rooms: Room[]): any[] {
@@ -68,6 +105,7 @@ export abstract class BaseStrategy {
         // 1. HARD CONSTRAINTS
         if (!this.tracker.isTeacherAvailable(sec.teacher, slotId)) fails.push("Teacher booked");
         if (sec.coTeacher && !this.tracker.isTeacherAvailable(sec.coTeacher, slotId)) fails.push("Co-Teacher booked");
+        if (!this.checkTravelTime(sec.teacher, slotId, periodList)) fails.push("Travel time violation");
 
         if (fails.length > 0) {
           periodEvaluations.push({ period: slotId, cost: Infinity, reasons: fails });

@@ -22,6 +22,7 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
   const isBlock = c.scheduleType === "ab_block" || c.scheduleType === "4x4_block";
   const isTri = c.scheduleType === "trimester";
   
+  const isElem = c.schoolType === "elementary" || c.schoolType === "k8";
   const defaultLoad = isBlock ? 6 : (isTri ? 12 : 5);
 
   // DYNAMIC DEFAULTS BASED ON SCHOOL TYPE
@@ -60,6 +61,13 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
   const [tl, setTl] = useState(c.targetLoad ?? defaultLoad);
   const [expanded, setExpanded] = useState<number | null>(null);
 
+  // ELEMENTARY COHORT STATE
+  const [cohorts, setCohorts] = useState<any[]>([
+    { id: "c1", name: "1A", gradeLevel: "1", teacherId: "", studentCount: 25 },
+    { id: "c2", name: "1B", gradeLevel: "1", teacherId: "", studentCount: 25 },
+    { id: "c3", name: "2A", gradeLevel: "2", teacherId: "", studentCount: 26 },
+  ]);
+
   const upD = (i: number, f: string, v: any) => { const d = [...depts]; d[i] = { ...d[i], [f]: v }; setDepts(d); };
 
   const periodCount = c.periodsCount || (isBlock ? 4 : (isTri ? 5 : 7));
@@ -78,6 +86,27 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
   const coreDepts = depts.filter(d => d.required);
 
   const cont = () => {
+    if (isElem) {
+      // ELEMENTARY LOGIC
+      const teachers: any[] = [];
+      cohorts.forEach((coh, i) => {
+        teachers.push({
+          id: coh.teacherId || `t_hr_${i}`,
+          name: coh.teacherName || `HR Teacher ${coh.name}`,
+          departments: ["Homeroom", `Grade ${coh.gradeLevel}`],
+          planPeriods: planP
+        });
+      });
+      // Add Specials Teachers
+      teachers.push({ id: "t_art", name: "Art Teacher", departments: ["Art"], planPeriods: planP });
+      teachers.push({ id: "t_music", name: "Music Teacher", departments: ["Music"], planPeriods: planP });
+      teachers.push({ id: "t_pe", name: "PE Teacher", departments: ["PE"], planPeriods: planP });
+
+      setConfig({ ...c, cohorts, teachers, studentCount: sc, roomCount: rc, maxClassSize: ms, students: { count: sc } });
+      onNext();
+      return;
+    }
+
     const teachers: any[] = [], courses: any[] = [], rooms: any[] = [];
     depts.forEach(dept => {
       const tc = dept.teacherCount || 1;
@@ -104,6 +133,41 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
     setConfig({ ...c, departments: depts, studentCount: sc, roomCount: rc, labCount: lc, gymCount: gc, maxClassSize: ms, targetLoad: validLoad, teachers, courses, rooms, students: { count: sc } });
     onNext();
   };
+
+  if (isElem) {
+    return (
+      <div>
+        <h2 style={{ color: COLORS.primary, marginBottom: 6 }}>Elementary Cohort Setup</h2>
+        <p style={{ color: COLORS.textLight, marginBottom: 20 }}>Define your homerooms (Cohorts). Students stay together.</p>
+        
+        <div style={{ maxWidth: 750 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
+            <NumInput label="Total Students" min={10} max={5000} value={sc} onChange={setSc} />
+            <NumInput label="Max Class Size" min={10} max={50} value={ms} onChange={setMs} />
+          </div>
+
+          <h3 style={{ fontSize: 15, marginBottom: 10 }}>🏫 Cohorts (Homerooms)</h3>
+          {cohorts.map((coh, i) => (
+            <div key={coh.id} style={{ display: "flex", gap: 8, padding: 10, background: COLORS.offWhite, borderRadius: 8, marginBottom: 8, alignItems: "center" }}>
+              <input value={coh.name} onChange={e => { const n = [...cohorts]; n[i].name = e.target.value; setCohorts(n); }} placeholder="Name (e.g. 1A)" style={{ ...INPUT_STYLE, width: 80 }} />
+              <select value={coh.gradeLevel} onChange={e => { const n = [...cohorts]; n[i].gradeLevel = e.target.value; setCohorts(n); }} style={{ ...SELECT_STYLE, width: 100 }}>
+                {["K","1","2","3","4","5","6"].map(g => <option key={g} value={g}>Gr {g}</option>)}
+              </select>
+              <input value={coh.teacherName || ""} onChange={e => { const n = [...cohorts]; n[i].teacherName = e.target.value; setCohorts(n); }} placeholder="Homeroom Teacher" style={{ ...INPUT_STYLE, flex: 1 }} />
+              <input type="number" value={coh.studentCount} onChange={e => { const n = [...cohorts]; n[i].studentCount = parseInt(e.target.value); setCohorts(n); }} style={{ ...SMALL_INPUT, width: 60 }} />
+              <div onClick={() => setCohorts(cohorts.filter((_, j) => j !== i))} style={{ cursor: "pointer", color: COLORS.danger, marginLeft: 8 }}>×</div>
+            </div>
+          ))}
+          <Btn variant="ghost" small onClick={() => setCohorts([...cohorts, { id: `c_${Date.now()}`, name: "New", gradeLevel: "1", studentCount: 25 }])}>+ Add Cohort</Btn>
+        </div>
+
+        <div style={{ marginTop: 24, display: "flex", justifyContent: "space-between" }}>
+          <Btn variant="secondary" onClick={onBack}>← Back</Btn>
+          <Btn onClick={cont}>Continue →</Btn>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>

@@ -65,7 +65,7 @@ class StructuredLogger {
 // --- Main Scheduling Engine ---
 export function generateSchedule(config: ScheduleConfig, onProgress?: (msg: string, pct: number) => void) {
   const {
-    teachers = [], courses = [], rooms = [], constraints = [],
+    teachers = [], courses = [], cohorts = [], rooms = [], constraints = [],
     lunchConfig = {} as any, winConfig = {} as any, plcEnabled = false,
     recessConfig = {} as any, // NEW: Destructure recess config
     studentCount = 800, maxClassSize = 30, planPeriodsPerDay,
@@ -329,74 +329,93 @@ export function generateSchedule(config: ScheduleConfig, onProgress?: (msg: stri
   if (onProgress) onProgress("Building Course Sections...", 40);
 
   const sections: Section[] = [];
-  const coreCourses = courses.filter(c => c.required);
-  const electiveCourses = courses.filter(c => !c.required);
-  const coreCount = coreCourses.length;
-  const electiveSlotsPerStudent = Math.max(0, effectiveSlots - coreCount);
-
-  coreCourses.forEach(c => {
-    const num = c.sections || Math.ceil(studentCount / (c.maxSize || maxClassSize));
-    const enroll = Math.ceil(studentCount / num);
-    for(let s=0; s<num; s++) {
-      sections.push({
-        id: `${c.id}-S${s+1}`, courseId: c.id, courseName: c.name, 
-        sectionNum: s+1, maxSize: c.maxSize || maxClassSize, 
-        enrollment: Math.min(enroll, c.maxSize || maxClassSize),
-        department: c.department, gradeLevel: c.gradeLevel, roomType: c.roomType || "regular",
-        isCore: true, teacher: null, room: null, period: null,
-        isSingleton: num === 1
-      });
-    }
-  });
-
-  const totalElectiveDemand = studentCount * electiveSlotsPerStudent;
   
-  // 1. Pre-calculate total sections to ensure accurate enrollment distribution
-  // This prevents the "phantom student" bug where Math.ceil() over-allocates
-  let grandTotalSections = 0;
-  const courseSectionCounts = new Map<string, number>();
-
-  electiveCourses.forEach(c => {
-    let num = c.sections;
-    const isPE = c.department.toLowerCase().includes("pe");
-    const size = isPE ? 50 : (c.maxSize || maxClassSize);
-    
-    if (!num) {
-      const share = 1 / (electiveCourses.length || 1);
-      num = Math.max(1, Math.ceil((totalElectiveDemand * share) / size));
-    }
-    courseSectionCounts.set(c.id, num);
-    grandTotalSections += num;
-  });
-
-  // 2. Calculate base seats and remainder
-  const safeTotalSections = grandTotalSections || 1;
-  const baseEnrollment = Math.floor(totalElectiveDemand / safeTotalSections);
-  let remainingSeats = totalElectiveDemand % safeTotalSections;
-
-  electiveCourses.forEach(c => {
-    const num = courseSectionCounts.get(c.id) || 1;
-    const isPE = c.department.toLowerCase().includes("pe");
-    const size = isPE ? 50 : (c.maxSize || maxClassSize);
-    
-    for(let s=0; s<num; s++) {
-      // 3. Distribute remainder seats one by one until gone
-      let currentEnrollment = baseEnrollment;
-      if (remainingSeats > 0) {
-        currentEnrollment += 1;
-        remainingSeats -= 1;
-      }
-
+  // --- COHORT GENERATION (Elementary) ---
+  if (cohorts && cohorts.length > 0) {
+    logger.info(`Generating sections for ${cohorts.length} cohorts...`);
+    cohorts.forEach(coh => {
+      // 1. Homeroom Section (Core)
       sections.push({
-        id: `${c.id}-S${s+1}`, courseId: c.id, courseName: c.name,
-        sectionNum: s+1, maxSize: size, 
-        enrollment: Math.min(currentEnrollment, size), // Cap at maxSize
-        department: c.department, gradeLevel: c.gradeLevel, roomType: c.roomType || "regular",
-        isCore: false, teacher: null, room: null, period: null,
-        isSingleton: num === 1
+        id: `${coh.id}-HR`, courseId: `HR-${coh.gradeLevel}`, courseName: `Homeroom ${coh.name}`,
+        sectionNum: 1, maxSize: 30, enrollment: coh.studentCount,
+        department: `Grade ${coh.gradeLevel}`, gradeLevel: coh.gradeLevel, roomType: "regular",
+        isCore: true, teacher: coh.teacherId, teacherName: coh.teacherName,
+        room: null, period: null, locked: false
       });
-    }
-  });
+
+      // 2. Specials (Art, Music, PE)
+      ["Art", "Music", "PE"].forEach(spec => {
+        sections.push({
+          id: `${coh.id}-${spec}`, courseId: `SPEC-${spec}`, courseName: `${spec} - ${coh.name}`,
+          sectionNum: 1, maxSize: 30, enrollment: coh.studentCount,
+          department: spec, gradeLevel: coh.gradeLevel, roomType: spec === "PE" ? "gym" : "regular",
+          isCore: false, teacher: null, room: null, period: null, isSingleton: true
+        });
+      });
+    });
+  } else {
+    // --- STANDARD COURSE GENERATION ---
+    const coreCourses = courses.filter(c => c.required);
+    const electiveCourses = courses.filter(c => !c.required);
+    const coreCount = coreCourses.length;
+    const electiveSlotsPerStudent = Math.max(0, effectiveSlots - coreCount);
+
+    coreCourses.forEach(c => {
+      const num = c.sections || Math.ceil(studentCount / (c.maxSize || maxClassSize));
+      const enroll = Math.ceil(studentCount / num);
+      for(let s=0; s<num; s++) {
+        sections.push({
+          id: `${c.id}-S${s+1}`, courseId: c.id, courseName: c.name, 
+          sectionNum: s+1, maxSize: c.maxSize || maxClassSize, 
+          enrollment: Math.min(enroll, c.maxSize || maxClassSize),
+          department: c.department, gradeLevel: c.gradeLevel, roomType: c.roomType || "regular",
+          isCore: true, teacher: null, room: null, period: null,
+          isSingleton: num === 1
+        });
+      }
+    });
+
+    const totalElectiveDemand = studentCount * electiveSlotsPerStudent;
+    let grandTotalSections = 0;
+    const courseSectionCounts = new Map<string, number>();
+
+    electiveCourses.forEach(c => {
+      let num = c.sections;
+      const isPE = c.department.toLowerCase().includes("pe");
+      const size = isPE ? 50 : (c.maxSize || maxClassSize);
+      
+      if (!num) {
+        const share = 1 / (electiveCourses.length || 1);
+        num = Math.max(1, Math.ceil((totalElectiveDemand * share) / size));
+      }
+      courseSectionCounts.set(c.id, num);
+      grandTotalSections += num;
+    });
+
+    const safeTotalSections = grandTotalSections || 1;
+    const baseEnrollment = Math.floor(totalElectiveDemand / safeTotalSections);
+    let remainingSeats = totalElectiveDemand % safeTotalSections;
+
+    electiveCourses.forEach(c => {
+      const num = courseSectionCounts.get(c.id) || 1;
+      const isPE = c.department.toLowerCase().includes("pe");
+      const size = isPE ? 50 : (c.maxSize || maxClassSize);
+      
+      for(let s=0; s<num; s++) {
+        let currentEnrollment = baseEnrollment;
+        if (remainingSeats > 0) { currentEnrollment += 1; remainingSeats -= 1; }
+
+        sections.push({
+          id: `${c.id}-S${s+1}`, courseId: c.id, courseName: c.name,
+          sectionNum: s+1, maxSize: size, 
+          enrollment: Math.min(currentEnrollment, size),
+          department: c.department, gradeLevel: c.gradeLevel, roomType: c.roomType || "regular",
+          isCore: false, teacher: null, room: null, period: null,
+          isSingleton: num === 1
+        });
+      }
+    });
+  }
   
   const intendedLoad: Record<string, number> = {};
   teachers.forEach(t => intendedLoad[t.id] = 0);
@@ -405,7 +424,7 @@ export function generateSchedule(config: ScheduleConfig, onProgress?: (msg: stri
     const candidates = teachers.filter(t => (t.departments||[]).includes(sec.department));
     const pool = candidates.length > 0 ? candidates : teachers; 
     
-    pool.sort((a,b) => intendedLoad[a.id] - intendedLoad[b.id]);
+    pool.sort((a,b) => intendedLoad[a.id] - intendedLoad[b.id]); // Load balancing
     
     if(pool.length > 0) {
       const t = pool[0]; 

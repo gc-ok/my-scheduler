@@ -33,6 +33,7 @@ export function buildScheduleConfig(config: any): ScheduleConfig {
     },
     teachers: config.teachers || [],
     courses: config.courses || [],
+    cohorts: config.cohorts || [],
     rooms: config.rooms || [],
     constraints: config.constraints || [],
     studentCount: config.studentCount || 800,

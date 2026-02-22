@@ -1,7 +1,7 @@
 // src/views/wizard/steps/BellScheduleStep.tsx
 import { useState } from "react";
 import { COLORS } from "../../../utils/theme";
-import { Btn, Card, NumInput, TimeInput } from "../../../components/ui/CoreUI";
+import { Btn, Card, NumInput, TimeInput, Toggle } from "../../../components/ui/CoreUI";
 
 interface StepProps {
   config: any;
@@ -10,13 +10,24 @@ interface StepProps {
   onBack: () => void;
 }
 
-const toMins = (t?: string): number => { if (!t) return 480; const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+const toMins = (t?: string): number => { 
+  if (!t) return 480; 
+  const [hStr, mStr] = t.split(":"); 
+  return parseInt(hStr) * 60 + parseInt(mStr); 
+};
+
 const toTime = (mins: number): string => {
   const h = Math.floor(mins / 60) % 24;
   const m = Math.floor(mins % 60);
   const ampm = h >= 12 ? "PM" : "AM";
   const h12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
   return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+};
+
+const toTime24 = (mins: number): string => {
+  const h = Math.floor(mins / 60) % 24;
+  const m = Math.floor(mins % 60);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 };
 
 export function BellScheduleStep({ config: c, setConfig, onNext, onBack }: StepProps) {
@@ -28,12 +39,16 @@ export function BellScheduleStep({ config: c, setConfig, onNext, onBack }: StepP
   const [count, setCount] = useState(c.periodsCount || (isBlock ? 4 : 7));
   const [len, setLen] = useState(c.periodLength || (isBlock ? 90 : 50));
   const [pass, setPass] = useState(c.passingTime || 5);
+  
+  const [hasZero, setHasZero] = useState(false);
+  const [hasAfter, setHasAfter] = useState(false);
 
   const calculateBaseTimeline = () => {
     const sMin = toMins(start);
     let calculatedPeriods: any[] = [];
     let calculatedLen = len;
     let calculatedEnd = end;
+    let calculatedEndMin = toMins(end);
 
     if (mode === "time_frame") {
       const eMin = toMins(end);
@@ -65,16 +80,44 @@ export function BellScheduleStep({ config: c, setConfig, onNext, onBack }: StepP
         cur += len + pass;
       }
       calculatedEnd = toTime(cur - pass);
+      calculatedEndMin = cur - pass;
     }
-    return { periods: calculatedPeriods, resultLen: calculatedLen, resultEnd: calculatedEnd };
+
+    // Inject 0 Hour
+    if (hasZero) {
+      const zDur = len > 60 ? 60 : len; // Cap 0 hour at 60m usually
+      const zEnd = calculatedPeriods[0].startMin - pass;
+      const zStart = zEnd - zDur;
+      calculatedPeriods.unshift({
+        id: 0, label: "0 Hour",
+        startMin: zStart, endMin: zEnd,
+        startTime: toTime(zStart), endTime: toTime(zEnd),
+        duration: zDur, type: "class"
+      });
+    }
+
+    // Inject After School
+    if (hasAfter) {
+      const last = calculatedPeriods[calculatedPeriods.length - 1];
+      const aStart = last.endMin + pass;
+      const aEnd = aStart + len;
+      calculatedPeriods.push({
+        id: calculatedPeriods.length + (hasZero ? 0 : 1), label: "After School",
+        startMin: aStart, endMin: aEnd,
+        startTime: toTime(aStart), endTime: toTime(aEnd),
+        duration: len, type: "class"
+      });
+    }
+
+    return { periods: calculatedPeriods, resultLen: calculatedLen, resultEnd: calculatedEnd, resultEndMin: calculatedEndMin };
   };
 
   const handleNext = () => {
     const calc = calculateBaseTimeline();
     setConfig({
-      ...c, scheduleMode: mode, schoolStart: start,
-      schoolEnd: mode === "time_frame" ? end : calc.resultEnd, 
-      periodsCount: count, periodLength: mode === "time_frame" ? calc.resultLen : len,
+      ...c, scheduleMode: mode, schoolStart: hasZero ? toTime24(calc.periods[0].startMin) : start,
+      schoolEnd: mode === "time_frame" ? end : toTime24(calc.resultEndMin), 
+      periodsCount: calc.periods.length, periodLength: mode === "time_frame" ? calc.resultLen : len,
       passingTime: pass, periods: calc.periods
     });
     onNext();
@@ -108,6 +151,12 @@ export function BellScheduleStep({ config: c, setConfig, onNext, onBack }: StepP
         <div style={{ display: "flex", gap: 16, marginTop: 16 }}>
           <NumInput label={isBlock ? "Blocks per Day" : "Number of Periods"} value={count} onChange={setCount} min={1} max={15} style={{ flex: 1 }} />
           <NumInput label="Passing Time (min)" value={pass} onChange={setPass} min={0} max={20} style={{ flex: 1 }} />
+        </div>
+        
+        <div style={{ marginTop: 20, padding: 12, background: COLORS.offWhite, borderRadius: 8 }}>
+          <Toggle label="Include 0 Hour (Before School)" checked={hasZero} onChange={setHasZero} />
+          <div style={{ height: 8 }} />
+          <Toggle label="Include After School Period" checked={hasAfter} onChange={setHasAfter} />
         </div>
       </div>
 

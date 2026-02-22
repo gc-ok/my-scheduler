@@ -24,7 +24,7 @@ export default function WizardController({ step, setStep, config, setConfig, onC
     { id: 4, label: "Lunch" }, { id: 5, label: "Plan & PLC" }, { id: 6, label: "WIN Time" },
     ...(showRecess ? [{ id: 7, label: "Recess" }] : []),
     { id: 8, label: "Data Input" },
-    { id: 9, label: config.inputMode === "csv" ? "CSV Upload" : "Quick Setup" },
+    { id: 9, label: config.inputMode === "csv" ? "CSV Upload" : (config.schoolType === "elementary" || config.schoolType === "k8" ? "Cohort Setup" : "Quick Setup") },
     { id: 10, label: "Constraints" }
   ];
 
@@ -96,7 +96,7 @@ export default function WizardController({ step, setStep, config, setConfig, onC
 
 const styles = {
   header: { background: COLORS.white, padding: "14px 24px", borderBottom: `1px solid ${COLORS.lightGray}`, display: "flex", justifyContent: "space-between", alignItems: "center" },
-  navBar: { background: COLORS.white, padding: "10px 24px", borderBottom: `1px solid ${COLORS.lightGray}`, overflowX: "auto" },
+  navBar: { background: COLORS.white, padding: "10px 24px", borderBottom: `1px solid ${COLORS.lightGray}`, overflowX: "auto" as const },
   navItems: { display: "flex", gap: 4, alignItems: "center" },
   navItemContainer: { display: "flex", alignItems: "center" },
   navPill: { padding: "4px 10px", borderRadius: 20, fontSize: 12, whiteSpace: "nowrap" as const },

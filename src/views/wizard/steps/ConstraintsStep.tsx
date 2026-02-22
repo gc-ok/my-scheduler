@@ -19,6 +19,9 @@ export function ConstraintsStep({ config: c, setConfig, onNext, onBack }: StepPr
   const [showAvail, setShowAvail] = useState(false);
   const [na, setNa] = useState<{teacherId: string, blockedPeriods: number[]}>({ teacherId: "", blockedPeriods: [] });
 
+  const [showTravel, setShowTravel] = useState(false);
+  const [nt, setNt] = useState<{teacherId: string, minutes: number}>({ teacherId: "", minutes: 15 });
+
   const periods = c.periods || [];
   const teachers = c.teachers || [];
 
@@ -32,6 +35,12 @@ export function ConstraintsStep({ config: c, setConfig, onNext, onBack }: StepPr
     setNa({ teacherId: "", blockedPeriods: [] });
   };
 
+  const saveTravel = () => {
+    const updatedTeachers = teachers.map((t: any) => t.id === nt.teacherId ? { ...t, travelTime: nt.minutes } : t);
+    setConfig({ ...c, teachers: updatedTeachers });
+    setShowTravel(false);
+  };
+
   return (
     <div>
       <h2 style={{ color: COLORS.primary, marginBottom: 6 }}>Constraints & Part-Time Staff</h2>
@@ -39,7 +48,7 @@ export function ConstraintsStep({ config: c, setConfig, onNext, onBack }: StepPr
       
       <div style={{ maxWidth: 700 }}>
         {/* --- SECTION 1: PART-TIME STAFF --- */}
-        <div style={{ background: COLORS.white, border: `1px solid ${COLORS.lightGray}`, borderRadius: 8, padding: 16, marginBottom: 20 }}>
+        <div style={{ background: COLORS.white, border: `1px solid ${COLORS.lightGray}`, borderRadius: 8, padding: 16, marginBottom: 16 }}>
           <h3 style={{ fontSize: 15, margin: "0 0 12px 0", color: COLORS.primaryDark }}>⏱️ Staff Availability (Part-Time)</h3>
           
           {avail.map(a => {
@@ -81,8 +90,30 @@ export function ConstraintsStep({ config: c, setConfig, onNext, onBack }: StepPr
           ) : <Btn variant="ghost" onClick={() => setShowAvail(true)} small>+ Add Teacher Restriction</Btn>}
         </div>
 
-        {/* --- SECTION 2: COURSE LOCKS --- */}
-        <div style={{ background: COLORS.white, border: `1px solid ${COLORS.lightGray}`, borderRadius: 8, padding: 16 }}>
+        {/* --- SECTION 2: TRAVEL TIME --- */}
+        <div style={{ background: COLORS.white, border: `1px solid ${COLORS.lightGray}`, borderRadius: 8, padding: 16, marginBottom: 16 }}>
+          <h3 style={{ fontSize: 15, margin: "0 0 12px 0", color: COLORS.primaryDark }}>🚗 Travel Time</h3>
+          {teachers.filter((t: any) => t.travelTime).map((t: any) => (
+            <div key={t.id} style={{ display: "flex", justifyContent: "space-between", padding: 8, background: "#E0F2FE", borderRadius: 6, marginBottom: 8, fontSize: 13 }}>
+              <div><strong>{t.name}</strong> needs {t.travelTime} mins between campuses.</div>
+              <div onClick={() => { const up = teachers.map((x: any) => x.id === t.id ? { ...x, travelTime: undefined } : x); setConfig({ ...c, teachers: up }); }} style={{ cursor: "pointer", color: COLORS.danger }}>✕</div>
+            </div>
+          ))}
+
+          {showTravel ? (
+            <div style={{ padding: 12, background: COLORS.offWhite, borderRadius: 8, marginTop: 10 }}>
+              <Sel label="Select Teacher" value={nt.teacherId} onChange={v => setNt({ ...nt, teacherId: v })} options={[{ value: "", label: "Select..." }, ...teachers.map((t: any) => ({ value: t.id, label: t.name }))]} />
+              <NumInput label="Minutes Needed" value={nt.minutes} onChange={v => setNt({ ...nt, minutes: v })} min={5} max={60} />
+              <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+                <Btn onClick={saveTravel} small>Save Travel</Btn>
+                <Btn variant="secondary" onClick={() => setShowTravel(false)} small>Cancel</Btn>
+              </div>
+            </div>
+          ) : <Btn variant="ghost" onClick={() => setShowTravel(true)} small>+ Add Travel Constraint</Btn>}
+        </div>
+
+        {/* --- SECTION 3: COURSE LOCKS --- */}
+        <div style={{ background: COLORS.white, border: `1px solid ${COLORS.lightGray}`, borderRadius: 8, padding: 16, marginBottom: 16 }}>
           <h3 style={{ fontSize: 15, margin: "0 0 12px 0", color: COLORS.primaryDark }}>🔒 Course Constraints</h3>
           {cons.map(con => (
             <div key={con.id} style={{ display: "flex", justifyContent: "space-between", padding: 8, background: COLORS.offWhite, borderRadius: 6, marginBottom: 8, fontSize: 13 }}>
