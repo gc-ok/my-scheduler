@@ -16,6 +16,7 @@ export default function App() {
   
   // NEW: State to track when the worker is processing
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [genProgress, setGenProgress] = useState({ msg: "Starting...", pct: 0 });
   
   // NEW: Ref to hold the worker instance
   const workerRef = useRef<Worker | null>(null);
@@ -61,9 +62,14 @@ export default function App() {
     workerRef.current = new Worker(new URL('./core/worker.ts', import.meta.url), { type: 'module' });
     
     workerRef.current.onmessage = (e) => {
-      const { status, data, error } = e.data;
-      setIsGenerating(false);
+      const { status, data, error, message, percentage } = e.data;
+      
+      if (status === 'PROGRESS') {
+        setGenProgress({ msg: message, pct: percentage });
+        return;
+      }
 
+      setIsGenerating(false);
       if (status === 'SUCCESS') {
         // 3. Save Schedule (Strip heavy logs first)
         // We remove 'logs' and 'placementHistory' to save space/memory
@@ -87,6 +93,7 @@ export default function App() {
   const gen = () => {
     setIsGenerating(true);
     const finalConfig = buildScheduleConfig(config);
+    setGenProgress({ msg: "Initializing...", pct: 0 });
     // Send message to the background worker
     workerRef.current?.postMessage({ action: 'GENERATE', config: finalConfig });
   };
@@ -94,6 +101,7 @@ export default function App() {
   const regen = () => {
     if (!schedule) return;
     setIsGenerating(true);
+    setGenProgress({ msg: "Refactoring...", pct: 0 });
 
     const lockedSections = schedule.sections.filter((s: Section) => s.locked);
     const manualSections = schedule.sections.filter((s: Section) => s.isManual && !s.locked);
@@ -162,7 +170,10 @@ export default function App() {
       <div style={{ ...rootStyle, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
         <Logo size={60} />
         <h2 style={{ marginTop: 20, color: COLORS.primary }}>Generating Master Schedule...</h2>
-        <p style={{ color: COLORS.textLight }}>This may take a few moments depending on constraints.</p>
+        <div style={{ width: 300, height: 6, background: COLORS.lightGray, borderRadius: 3, marginTop: 15, overflow: "hidden" }}>
+          <div style={{ width: `${genProgress.pct}%`, height: "100%", background: COLORS.primary, transition: "width 0.3s ease" }} />
+        </div>
+        <p style={{ color: COLORS.textLight, fontSize: 12, marginTop: 8 }}>{genProgress.msg} ({genProgress.pct}%)</p>
       </div>
     );
   }

@@ -63,7 +63,7 @@ class StructuredLogger {
 }
 
 // --- Main Scheduling Engine ---
-export function generateSchedule(config: ScheduleConfig) {
+export function generateSchedule(config: ScheduleConfig, onProgress?: (msg: string, pct: number) => void) {
   const {
     teachers = [], courses = [], rooms = [], constraints = [],
     lunchConfig = {} as any, winConfig = {} as any, plcEnabled = false,
@@ -78,6 +78,8 @@ export function generateSchedule(config: ScheduleConfig) {
   const conflicts: any[] = [];
 
   logger.info("🚀 Starting Robust Schedule Generation...", { mode: scheduleMode });
+
+  if (onProgress) onProgress("Configuring Timeframes...", 10);
 
   // 1. Setup Periods
   let finalPeriodLength = config.periodLength || 50;
@@ -214,6 +216,8 @@ export function generateSchedule(config: ScheduleConfig) {
   
   logger.info(`Calculated Max Load: ${maxLoad}`, { effectiveSlots, safePlanPeriods, plcEnabled });
 
+  if (onProgress) onProgress("Initializing Resources...", 20);
+
   const tracker = new ResourceTracker(teachers, rooms, maxLoad);
 
   const regularRooms = rooms.filter(r => r.type === "regular");
@@ -321,6 +325,8 @@ export function generateSchedule(config: ScheduleConfig) {
       if (c.teacherId) tracker.blockTeacher(c.teacherId, toUniv(Number(c.period)), "BLOCKED");
     }
   });
+
+  if (onProgress) onProgress("Building Course Sections...", 40);
 
   const sections: Section[] = [];
   const coreCourses = courses.filter(c => c.required);
@@ -444,6 +450,8 @@ export function generateSchedule(config: ScheduleConfig) {
     strategy = new StandardStrategy(tracker, config, logger);
   }
   
+  if (onProgress) onProgress("Running Scheduling Algorithm...", 60);
+
   const strategyConflicts = strategy.execute(sections, periodList, rooms);
   conflicts.push(...strategyConflicts);
 
@@ -475,6 +483,8 @@ export function generateSchedule(config: ScheduleConfig) {
     
     lunchSections.forEach(s => { s.lunchWave = groupWaveMap[groupKey(s)]; });
   }
+
+  if (onProgress) onProgress("Finalizing & Analyzing...", 90);
 
   const periodStudentData: Record<string, any> = {};
   const isAB = config.scheduleType === "ab_block";

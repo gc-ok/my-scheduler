@@ -9,8 +9,10 @@ self.onmessage = (e: MessageEvent<{
   const { action, config, sizeOverrides } = e.data;
 
   try {
-    // 1. Run the heavy scheduling algorithm
-    const result = generateSchedule(config);
+    // 1. Run the heavy scheduling algorithm with progress reporting
+    const result = generateSchedule(config, (msg, pct) => {
+      self.postMessage({ status: 'PROGRESS', message: msg, percentage: pct });
+    });
 
     // 2. Apply size overrides if this was a regeneration request
     if (action === 'GENERATE_WITH_OVERRIDES' && sizeOverrides && sizeOverrides.length > 0) {
