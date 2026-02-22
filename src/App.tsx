@@ -12,6 +12,7 @@ export default function App() {
   const [step, setStep] = useState<number>(0);
   const [config, setConfig] = useState<Partial<ScheduleConfig>>({});
   const [schedule, setSchedule] = useState<any>(null);
+  const [isDataLoaded, setIsDataLoaded] = useState<boolean>(false);
   
   // NEW: State to track when the worker is processing
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
@@ -36,12 +37,16 @@ export default function App() {
       } catch (err) {
         console.warn("Could not restore session:", err);
       }
+      finally {
+        setIsDataLoaded(true);
+      }
     };
     restoreSession();
   }, []);
 
   // 2. Auto-save Config & Step (Debounced to prevent thrashing)
   useEffect(() => {
+    if (!isDataLoaded) return;
     const timer = setTimeout(() => {
       if (Object.keys(config).length > 0) {
         saveToDB("config", config);
@@ -49,7 +54,7 @@ export default function App() {
       }
     }, 1000); // Wait 1 second after last change
     return () => clearTimeout(timer);
-  }, [config, step]);
+  }, [config, step, isDataLoaded]);
 
   // NEW: Initialize the Web Worker on component mount
   useEffect(() => {
