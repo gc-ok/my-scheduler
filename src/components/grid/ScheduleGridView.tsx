@@ -6,6 +6,7 @@ import TeacherGrid from "./TeacherGrid";
 import RoomGrid from "./RoomGrid";
 import { generateSchedule } from "../../core/engine";
 import { ScheduleConfig, Section, Teacher, Period } from "../../types";
+import { buildScheduleConfig } from "../../utils/scheduleConfig";
 
 // --- STYLES & HELPERS ---
 const inputStyle = { width: "100%", padding: "10px", marginTop: 4, borderRadius: 6, border: `1px solid ${COLORS.lightGray}`, fontSize: 14, outline: "none" };
@@ -18,38 +19,6 @@ const btnStyle = (bg: string, color: string, disabled = false, border = "none") 
   background: bg, color: color, padding: "6px 14px", borderRadius: 6, border: border,
   fontWeight: 600, fontSize: 12, cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1
 });
-
-function buildScheduleConfig(config: any): ScheduleConfig {
-  return {
-    ...config,
-    periods: config.periods || [],
-    schoolStart: config.schoolStart || "08:00",
-    periodLength: config.periodLength || 50,
-    passingTime: config.passingTime || 5,
-    lunchConfig: {
-      style: config.lunchConfig?.style || config.lunchStyle || "unit",
-      lunchPeriod: config.lunchConfig?.lunchPeriod ?? config.lunchPeriod,
-      lunchPeriods: config.lunchConfig?.lunchPeriods || config.lunchPeriods || [],
-      lunchDuration: config.lunchConfig?.lunchDuration || 30,
-      numWaves: config.lunchConfig?.numWaves || 1,
-      minClassTime: config.lunchConfig?.minClassTime || 45
-    },
-    winConfig: {
-      enabled: config.winEnabled || false,
-      winPeriod: config.winPeriod,
-      model: config.winModel || "uses_period",
-      afterPeriod: config.winAfterPeriod || 1,
-      winDuration: config.winDuration || 30,
-    },
-    teachers: config.teachers || [],
-    courses: config.courses || [],
-    rooms: config.rooms || [],
-    constraints: config.constraints || [],
-    studentCount: config.studentCount || 800,
-    maxClassSize: config.maxClassSize || 30,
-    planPeriodsPerDay: config.planPeriodsPerDay ?? 1,
-  };
-}
 
 // --- MODAL COMPONENTS ---
 
