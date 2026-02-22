@@ -75,6 +75,7 @@ export interface Section {
   conflictReason?: string;
   locked?: boolean;
   isManual?: boolean;
+  isSingleton?: boolean;
 }
 
 export interface Period {

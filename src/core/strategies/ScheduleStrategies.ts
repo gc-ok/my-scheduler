@@ -104,6 +104,9 @@ export class StandardStrategy extends BaseStrategy {
     teachingPeriodIds.forEach(id => this.secsInPeriod[`FY-ALL-${id}`] = 0);
 
     const placementOrder = [...sections].filter(s => !s.locked && !s.hasConflict).sort((a,b) => {
+      // 1. Singletons First (Highest Priority)
+      if (!!a.isSingleton !== !!b.isSingleton) return a.isSingleton ? -1 : 1;
+      // 2. Core vs Elective
       return a.isCore === b.isCore ? 0 : a.isCore ? -1 : 1;
     });
 
@@ -141,6 +144,18 @@ export class StandardStrategy extends BaseStrategy {
         const sibs = sections.filter(s => s.courseId === sec.courseId && s.period === timeSlotId).length;
         if (!sec.isCore && sibs > 0) { 
           cost += 200; softFails.push("Elective overlap"); 
+        }
+        
+        // 3. SINGLETON SPREADING (Conflict Matrix Logic)
+        if (sec.isSingleton) {
+          const placedSingletons = sections.filter(s => s.period === timeSlotId && s.isSingleton);
+          
+          // A. Department Conflict (e.g. AP Bio & AP Chem) - High Penalty
+          const deptConflict = placedSingletons.some(s => s.department === sec.department);
+          if (deptConflict) { cost += 1000; softFails.push("Dept Singleton Conflict"); }
+
+          // B. General Congestion - Moderate Penalty
+          cost += (placedSingletons.length * 50);
         }
 
         cost += (this.secsInPeriod[timeSlotId] || 0) * 10;
@@ -195,6 +210,9 @@ export class ABStrategy extends BaseStrategy {
     });
 
     const placementOrder = [...sections].filter(s => !s.locked && !s.hasConflict).sort((a,b) => {
+      // 1. Singletons First
+      if (!!a.isSingleton !== !!b.isSingleton) return a.isSingleton ? -1 : 1;
+      // 2. Core vs Elective
       return a.isCore === b.isCore ? 0 : a.isCore ? -1 : 1;
     });
 
@@ -227,6 +245,14 @@ export class ABStrategy extends BaseStrategy {
         const sibs = sections.filter(s => s.courseId === sec.courseId && s.period === slotId).length;
         if (!sec.isCore && sibs > 0) { 
           cost += 200; softFails.push("Elective overlap"); 
+        }
+        
+        // SINGLETON SPREADING
+        if (sec.isSingleton) {
+          const placedSingletons = sections.filter(s => s.period === slotId && s.isSingleton);
+          const deptConflict = placedSingletons.some(s => s.department === sec.department);
+          if (deptConflict) { cost += 1000; softFails.push("Dept Singleton Conflict"); }
+          cost += (placedSingletons.length * 50);
         }
 
         cost += (this.secsInPeriod[slotId] || 0) * 10;
@@ -278,6 +304,9 @@ export class Block4x4Strategy extends BaseStrategy {
     });
 
     const placementOrder = [...sections].filter(s => !s.locked && !s.hasConflict).sort((a,b) => {
+      // 1. Singletons First
+      if (!!a.isSingleton !== !!b.isSingleton) return a.isSingleton ? -1 : 1;
+      // 2. Core vs Elective
       return a.isCore === b.isCore ? 0 : a.isCore ? -1 : 1;
     });
 
@@ -402,6 +431,14 @@ export class TrimesterStrategy extends BaseStrategy {
         if (term === "T1" && t1Count > (t2Count + t3Count)/2) cost += 150; 
         if (term === "T2" && t2Count > (t1Count + t3Count)/2) cost += 150; 
         if (term === "T3" && t3Count > (t1Count + t2Count)/2) cost += 150; 
+
+        // SINGLETON SPREADING
+        if (sec.isSingleton) {
+          const placedSingletons = sections.filter(s => s.period === slotId && s.isSingleton);
+          const deptConflict = placedSingletons.some(s => s.department === sec.department);
+          if (deptConflict) { cost += 1000; softFails.push("Dept Singleton Conflict"); }
+          cost += (placedSingletons.length * 50);
+        }
 
         cost += (this.secsInPeriod[slotId] || 0) * 10;
         periodEvaluations.push({ period: slotId, cost, reasons: softFails });

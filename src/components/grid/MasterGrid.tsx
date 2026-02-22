@@ -38,6 +38,7 @@ export const SecCard = ({ section: s, dragItem, onDragStart, togLock, setEditSec
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "70%" }}>{s.courseName}</span>
         <div style={{ display: "flex", gap: 2, flexShrink: 0, alignItems: "center" }}>
+          {s.isSingleton && <span title="Singleton Section" style={{ fontSize: 8, cursor: "help" }}>1️⃣</span>}
           {dayBadge && <span style={{ fontSize: 7, background: COLORS.darkGray, color: COLORS.white, padding: "1px 3px", borderRadius: 3, marginRight: 2 }}>{dayBadge}</span>}
           {s.lunchWave && <span style={{ fontSize: 7, background: COLORS.warning, color: COLORS.text, padding: "1px 3px", borderRadius: 3 }}>W{s.lunchWave}</span>}
           {s.hasConflict && <span title={s.conflictReason} style={{ cursor: "help" }}>⚠️</span>}

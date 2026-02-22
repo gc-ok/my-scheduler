@@ -17,6 +17,9 @@ export class Block4x4Strategy extends BaseStrategy {
     });
 
     const placementOrder = [...sections].filter(s => !s.locked && !s.hasConflict).sort((a,b) => {
+      // 1. Singletons First
+      if (!!a.isSingleton !== !!b.isSingleton) return a.isSingleton ? -1 : 1;
+      // 2. Core vs Elective
       return a.isCore === b.isCore ? 0 : a.isCore ? -1 : 1;
     });
 
@@ -60,6 +63,14 @@ export class Block4x4Strategy extends BaseStrategy {
         
         if (term === "S1" && s1Count > s2Count) cost += 150; // Penalize S1 if it's getting heavy
         if (term === "S2" && s2Count > s1Count) cost += 150; // Penalize S2 if it's getting heavy
+
+        // 3. SINGLETON SPREADING
+        if (sec.isSingleton) {
+          const placedSingletons = sections.filter(s => s.period === slotId && s.isSingleton);
+          const deptConflict = placedSingletons.some(s => s.department === sec.department);
+          if (deptConflict) { cost += 1000; softFails.push("Dept Singleton Conflict"); }
+          cost += (placedSingletons.length * 50);
+        }
 
         cost += (this.secsInPeriod[slotId] || 0) * 10;
         periodEvaluations.push({ period: slotId, cost, reasons: softFails });

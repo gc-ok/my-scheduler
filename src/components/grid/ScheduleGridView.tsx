@@ -12,7 +12,7 @@ const inputStyle = { width: "100%", padding: "10px", marginTop: 4, borderRadius:
 
 const modalOverlayStyle = { position: "fixed" as const, top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 };
 
-const modalContentStyle = { background: COLORS.white, padding: 24, borderRadius: 12, boxShadow: "0 20px 40px rgba(0,0,0,0.3)", maxHeight: "90vh", overflowY: "auto" };
+const modalContentStyle = { background: COLORS.white, padding: 24, borderRadius: 12, boxShadow: "0 20px 40px rgba(0,0,0,0.3)", maxHeight: "90vh", overflowY: "auto" as const };
 
 const btnStyle = (bg: string, color: string, disabled = false, border = "none") => ({
   background: bg, color: color, padding: "6px 14px", borderRadius: 6, border: border,
@@ -20,7 +20,6 @@ const btnStyle = (bg: string, color: string, disabled = false, border = "none") 
 });
 
 function buildScheduleConfig(config: any): ScheduleConfig {
-  const pc = config.periodsCount || 7;
   return {
     ...config,
     periods: config.periods || [],
@@ -320,7 +319,7 @@ export default function ScheduleGridView({ schedule, config, setSchedule, onRege
       plcGroups: updatedPLCs,
       teacherAvailability: updatedAvail,
       teachers: updatedTeachers, 
-      maxClassSize: config.maxClassSize + 1 
+      maxClassSize: (config.maxClassSize || 30) + 1 
     };
     const result = generateSchedule(buildScheduleConfig(newConfig));
     setSchedule(result);

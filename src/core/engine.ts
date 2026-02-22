@@ -296,7 +296,8 @@ export function generateSchedule(config: ScheduleConfig) {
         sectionNum: s+1, maxSize: c.maxSize || maxClassSize, 
         enrollment: Math.min(enroll, c.maxSize || maxClassSize),
         department: c.department, roomType: c.roomType || "regular",
-        isCore: true, teacher: null, room: null, period: null
+        isCore: true, teacher: null, room: null, period: null,
+        isSingleton: num === 1
       });
     }
   });
@@ -344,7 +345,8 @@ export function generateSchedule(config: ScheduleConfig) {
         sectionNum: s+1, maxSize: size, 
         enrollment: Math.min(currentEnrollment, size), // Cap at maxSize
         department: c.department, roomType: c.roomType || "regular",
-        isCore: false, teacher: null, room: null, period: null
+        isCore: false, teacher: null, room: null, period: null,
+        isSingleton: num === 1
       });
     }
   });
