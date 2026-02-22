@@ -30,43 +30,49 @@ export default function WizardController({ step, setStep, config, setConfig, onC
 
   return (
     <>
-      <div style={{ background: COLORS.white, padding: "14px 24px", borderBottom: `1px solid ${COLORS.lightGray}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={styles.header}>
         <Logo size={36} />
       </div>
 
       {step > 0 && (
-        <div style={{ background: COLORS.white, padding: "10px 24px", borderBottom: `1px solid ${COLORS.lightGray}`, overflowX: "auto" }}>
-          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+        <div style={styles.navBar}>
+          <div style={styles.navItems}>
             {allSteps.map((s, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center" }}>
+              <div key={i} style={styles.navItemContainer}>
                 <div onClick={() => s.id <= step && setStep(s.id)} style={{
-                  padding: "4px 10px", borderRadius: 20, fontSize: 12, whiteSpace: "nowrap",
+                  ...styles.navPill,
                   cursor: s.id <= step ? "pointer" : "default",
                   background: s.id === step ? COLORS.primary : s.id < step ? COLORS.accentLight : COLORS.lightGray,
                   color: s.id === step ? COLORS.white : s.id < step ? COLORS.primary : COLORS.midGray,
                   fontWeight: s.id === step ? 700 : 500,
                 }}>{s.label}</div>
-                {i < allSteps.length - 1 && <div style={{ width: 12, height: 2, background: s.id < step ? COLORS.accent : COLORS.lightGray, margin: "0 2px" }} />}
+                {i < allSteps.length - 1 && <div style={{ ...styles.navLine, background: s.id < step ? COLORS.accent : COLORS.lightGray }} />}
               </div>
             ))}
           </div>
         </div>
       )}
 
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "30px 24px" }}>
+      <div style={styles.contentContainer}>
         {step === 0 && (
-          <div style={{ textAlign: "center", paddingTop: 40 }}>
-            <div style={{ display: "flex", justifyContent: "center", marginBottom: 24 }}><Logo size={80} /></div>
-            <h1 style={{ fontSize: 28, color: COLORS.primary, marginBottom: 8 }}>K-12 Master Scheduler</h1>
-            <p style={{ fontSize: 15, color: COLORS.textLight, maxWidth: 480, margin: "0 auto 30px", lineHeight: 1.6 }}>Build your master schedule in minutes. Configure, generate, and fine-tune.</p>
-            <Btn onClick={() => setStep(1)} style={{ padding: "14px 32px", fontSize: 16 }}>🚀 Start New Project</Btn>
-            <div style={{ marginTop: 40, display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 16, textAlign: "left" }}>
+          <div style={styles.landingWrapper}>
+            <div style={styles.landingLogo}><Logo size={80} /></div>
+            <h1 style={styles.landingTitle}>K-12 Master Scheduler</h1>
+            <p style={styles.landingDesc}>Build your master schedule in minutes. Configure, generate, and fine-tune.</p>
+            <Btn onClick={() => setStep(1)} style={styles.landingBtn}>🚀 Start New Project</Btn>
+            <div style={styles.landingGrid}>
               {[
                 { i: "🏫", t: "All School Types", d: "K-5 through 12" },
                 { i: "⚡", t: "Smart Algorithm", d: "Home rooms, student accounting, capacity validation" },
                 { i: "🔄", t: "Dynamic Models", d: "A/B Blocks, 4x4, and Traditional Schedules." },
                 { i: "📊", t: "Detailed Analytics", d: "Period-by-period student coverage tracking" },
-              ].map(f => <Card key={f.t}><div style={{ fontSize: 28, marginBottom: 8 }}>{f.i}</div><div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{f.t}</div><div style={{ fontSize: 13, color: COLORS.textLight, lineHeight: 1.4 }}>{f.d}</div></Card>)}
+              ].map(f => (
+                <Card key={f.t}>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>{f.i}</div>
+                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{f.t}</div>
+                  <div style={{ fontSize: 13, color: COLORS.textLight, lineHeight: 1.4 }}>{f.d}</div>
+                </Card>
+              ))}
             </div>
           </div>
         )}
@@ -87,3 +93,20 @@ export default function WizardController({ step, setStep, config, setConfig, onC
     </>
   );
 }
+
+const styles = {
+  header: { background: COLORS.white, padding: "14px 24px", borderBottom: `1px solid ${COLORS.lightGray}`, display: "flex", justifyContent: "space-between", alignItems: "center" },
+  navBar: { background: COLORS.white, padding: "10px 24px", borderBottom: `1px solid ${COLORS.lightGray}`, overflowX: "auto" },
+  navItems: { display: "flex", gap: 4, alignItems: "center" },
+  navItemContainer: { display: "flex", alignItems: "center" },
+  navPill: { padding: "4px 10px", borderRadius: 20, fontSize: 12, whiteSpace: "nowrap" as const },
+  navLine: { width: 12, height: 2, margin: "0 2px" },
+  contentContainer: { maxWidth: 900, margin: "0 auto", padding: "30px 24px" },
+  
+  landingWrapper: { textAlign: "center" as const, paddingTop: 40 },
+  landingLogo: { display: "flex", justifyContent: "center", marginBottom: 24 },
+  landingTitle: { fontSize: 28, color: COLORS.primary, marginBottom: 8 },
+  landingDesc: { fontSize: 15, color: COLORS.textLight, maxWidth: 480, margin: "0 auto 30px", lineHeight: 1.6 },
+  landingBtn: { padding: "14px 32px", fontSize: 16 },
+  landingGrid: { marginTop: 40, display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 16, textAlign: "left" as const },
+};

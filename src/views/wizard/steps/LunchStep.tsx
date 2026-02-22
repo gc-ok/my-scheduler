@@ -10,14 +10,6 @@ interface StepProps {
   onBack: () => void;
 }
 
-const SELECT_STYLE = {
-  width: "100%", padding: "9px 12px", borderRadius: 8,
-  border: `1px solid ${COLORS.lightGray}`, fontSize: 14, outline: "none",
-  boxSizing: "border-box" as const, fontFamily: "'Segoe UI', system-ui, sans-serif",
-  backgroundColor: COLORS.white, color: COLORS.text, colorScheme: "light" as const,
-  appearance: "auto" as const
-};
-
 const toMins = (t?: string): number => { if (!t) return 480; const [h, m] = t.split(":").map(Number); return h * 60 + m; };
 const toTime = (mins: number): string => {
   const h = Math.floor(mins / 60) % 24;
@@ -143,14 +135,14 @@ export function LunchStep({ config: c, setConfig, onNext, onBack }: StepProps) {
 
   return (
     <div>
-      <h2 style={{ color: COLORS.primary, marginBottom: 6 }}>{isBlock ? "Block Lunch Setup" : "Lunch Configuration"}</h2>
-      <p style={{ color: COLORS.textLight, marginBottom: 20, fontSize: 14 }}>
+      <h2 style={styles.heading}>{isBlock ? "Block Lunch Setup" : "Lunch Configuration"}</h2>
+      <p style={styles.subheading}>
         {isBlock 
           ? "In a block schedule, you generally extend one block to embed staggered waves, or assign consecutive blocks." 
           : "Configure how lunch fits into your bell schedule."}
       </p>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 24 }}>
+      <div style={styles.cardGrid}>
         <Card selected={style === "split"} onClick={() => setStyle("split")}>
           <div style={{ fontSize: 24, marginBottom: 8 }}>🌊</div>
           <div style={{ fontWeight: 700, fontSize: 14 }}>{isBlock ? "Embedded Block (Waves)" : "Split (Waves)"}</div>
@@ -174,22 +166,22 @@ export function LunchStep({ config: c, setConfig, onNext, onBack }: StepProps) {
         </Card>
       </div>
 
-      <div style={{ maxWidth: 550 }}>
+      <div style={styles.container}>
         {style === "multi_period" ? (
-          <div style={{ marginBottom: 16, padding: 16, background: COLORS.offWhite, borderRadius: 8, border: `1px solid ${COLORS.lightGray}` }}>
-            <h4 style={{ margin: "0 0 12px 0", color: COLORS.primaryDark }}>Consecutive Period Setup</h4>
+          <div style={styles.multiPeriodBox}>
+            <h4 style={styles.multiPeriodTitle}>Consecutive Period Setup</h4>
             
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div style={styles.grid2Col}>
                 <div>
-                    <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 6 }}>How many consecutive {isBlock ? "blocks" : "periods"}?</label>
-                    <select value={lunchSpan} onChange={e => setLunchSpan(parseInt(e.target.value))} style={SELECT_STYLE}>
+                    <label style={styles.labelBlock}>How many consecutive {isBlock ? "blocks" : "periods"}?</label>
+                    <select value={lunchSpan} onChange={e => setLunchSpan(parseInt(e.target.value))} style={styles.select}>
                         <option value={2}>2 {isBlock ? "Blocks" : "Periods"}</option>
                         <option value={3}>3 {isBlock ? "Blocks" : "Periods"}</option>
                     </select>
                 </div>
                 <div>
-                    <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Starts on which {isBlock ? "block" : "period"}?</label>
-                    <select value={lunchStartPeriod} onChange={e => setLunchStartPeriod(parseInt(e.target.value))} style={SELECT_STYLE}>
+                    <label style={styles.labelBlock}>Starts on which {isBlock ? "block" : "period"}?</label>
+                    <select value={lunchStartPeriod} onChange={e => setLunchStartPeriod(parseInt(e.target.value))} style={styles.select}>
                         {periods.map((p: any) => {
                             if (p.id + lunchSpan - 1 > pc) return null;
                             return <option key={p.id} value={p.id}>{p.label}</option>;
@@ -198,20 +190,20 @@ export function LunchStep({ config: c, setConfig, onNext, onBack }: StepProps) {
                 </div>
             </div>
 
-            <div style={{ marginTop: 16, fontSize: 13, color: COLORS.text, background: COLORS.white, padding: 10, borderRadius: 6, border: `1px solid ${COLORS.lightGray}` }}>
+            <div style={styles.generatedCycleBox}>
                 <strong>Generated Lunch Cycle:</strong><br/>
                 {derivedLunchPeriods.map(id => isBlock ? `Block ${id}` : `Period ${id}`).join(" → ")}
-                <div style={{ fontSize: 11, color: COLORS.textLight, marginTop: 6 }}>
+                <div style={styles.generatedCycleNote}>
                     * Normal passing times will occur between these. Teachers will automatically be distributed evenly so no department is fully empty.
                 </div>
             </div>
           </div>
         ) : (
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+          <div style={styles.singleSelectContainer}>
+            <label style={styles.singleSelectLabel}>
               {style === "unit" ? (isBlock ? "Which block does lunch follow?" : "Which period is Lunch?") : (isBlock ? "Which block will be extended to embed the waves?" : "Which period contains the waves?")}
             </label>
-            <select value={lunchPeriod} onChange={e => setLunchPeriod(parseInt(e.target.value))} style={{ ...SELECT_STYLE }}>
+            <select value={lunchPeriod} onChange={e => setLunchPeriod(parseInt(e.target.value))} style={styles.select}>
               {periods.map((p: any) => (
                 <option key={p.id} value={p.id}>{p.label} ({p.startTime} - {p.endTime}, {p.duration}m)</option>
               ))}
@@ -220,16 +212,16 @@ export function LunchStep({ config: c, setConfig, onNext, onBack }: StepProps) {
         )}
 
         {style !== "multi_period" && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div style={styles.grid2Col}>
               <NumInput label="Lunch Duration (min)" value={duration} onChange={setDuration} min={15} max={60} />
               {style === "split" && <NumInput label="Number of Waves" value={waves} onChange={setWaves} min={2} max={4} />}
           </div>
         )}
 
         {style === "split" && (
-            <div style={{ marginTop: 8, padding: 12, background: COLORS.white, border: `1px solid ${COLORS.lightGray}`, borderRadius: 8 }}>
+            <div style={styles.splitConfigBox}>
                 <NumInput label="Min. Class Time per Student (min)" value={minClassTime} onChange={setMinClassTime} min={20} max={120} style={{ marginBottom: 6 }} />
-                <div style={{ fontSize: 11, color: COLORS.textLight }}>
+                <div style={styles.splitConfigNote}>
                    {isBlock 
                      ? "How many minutes of actual instruction should the student get in this block? (Typically 90m for an A/B block)." 
                      : "Ensures students have enough learning time even with lunch."}
@@ -238,13 +230,13 @@ export function LunchStep({ config: c, setConfig, onNext, onBack }: StepProps) {
         )}
             
         {isTooShort && (
-          <div style={{ marginTop: 20, padding: 16, borderRadius: 8, background: "#FFF4E5", border: `1px solid ${COLORS.warning}`, fontSize: 13 }}>
-              <div style={{ fontWeight: 700, color: COLORS.warning, marginBottom: 8 }}>⚠️ Timeline Adjustment Needed</div>
-              <div style={{ marginBottom: 8, lineHeight: 1.5 }}>
+          <div style={styles.warningBox}>
+              <div style={styles.warningTitle}>⚠️ Timeline Adjustment Needed</div>
+              <div style={styles.warningText}>
                   {isBlock ? "Block" : "Period"} {lunchPeriod} is currently <strong>{currentDuration} min</strong>.<br/>
                   To fit your lunch waves AND instructional time, it must be automatically extended to <strong>{requiredDuration} min</strong>.
               </div>
-              <ul style={{ margin: "0 0 12px 16px", padding: 0, fontSize: 12, color: COLORS.text }}>
+              <ul style={styles.warningList}>
                   <li>Cafeteria needs: {waves} waves × {duration}m = <strong>{cafeteriaTime}m</strong></li>
                   <li>Students need: {minClassTime}m class + {duration}m lunch = <strong>{studentTime}m</strong></li>
               </ul>
@@ -255,7 +247,7 @@ export function LunchStep({ config: c, setConfig, onNext, onBack }: StepProps) {
         )}
       </div>
 
-      <div style={{ marginTop: 32, display: "flex", justifyContent: "space-between" }}>
+      <div style={styles.footer}>
         <Btn variant="secondary" onClick={onBack}>← Back</Btn>
         {!isTooShort && (
             <Btn onClick={handleNext}>
@@ -266,3 +258,32 @@ export function LunchStep({ config: c, setConfig, onNext, onBack }: StepProps) {
     </div>
   );
 }
+
+const styles = {
+  heading: { color: COLORS.primary, marginBottom: 6 },
+  subheading: { color: COLORS.textLight, marginBottom: 20, fontSize: 14 },
+  cardGrid: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 24 },
+  container: { maxWidth: 550 },
+  multiPeriodBox: { marginBottom: 16, padding: 16, background: COLORS.offWhite, borderRadius: 8, border: `1px solid ${COLORS.lightGray}` },
+  multiPeriodTitle: { margin: "0 0 12px 0", color: COLORS.primaryDark },
+  grid2Col: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 },
+  labelBlock: { display: "block", fontSize: 12, fontWeight: 600, marginBottom: 6 },
+  generatedCycleBox: { marginTop: 16, fontSize: 13, color: COLORS.text, background: COLORS.white, padding: 10, borderRadius: 6, border: `1px solid ${COLORS.lightGray}` },
+  generatedCycleNote: { fontSize: 11, color: COLORS.textLight, marginTop: 6 },
+  singleSelectContainer: { marginBottom: 16 },
+  singleSelectLabel: { display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 },
+  splitConfigBox: { marginTop: 8, padding: 12, background: COLORS.white, border: `1px solid ${COLORS.lightGray}`, borderRadius: 8 },
+  splitConfigNote: { fontSize: 11, color: COLORS.textLight },
+  warningBox: { marginTop: 20, padding: 16, borderRadius: 8, background: "#FFF4E5", border: `1px solid ${COLORS.warning}`, fontSize: 13 },
+  warningTitle: { fontWeight: 700, color: COLORS.warning, marginBottom: 8 },
+  warningText: { marginBottom: 8, lineHeight: 1.5 },
+  warningList: { margin: "0 0 12px 16px", padding: 0, fontSize: 12, color: COLORS.text },
+  footer: { marginTop: 32, display: "flex", justifyContent: "space-between" },
+  select: {
+    width: "100%", padding: "9px 12px", borderRadius: 8,
+    border: `1px solid ${COLORS.lightGray}`, fontSize: 14, outline: "none",
+    boxSizing: "border-box" as const, fontFamily: "'Segoe UI', system-ui, sans-serif",
+    backgroundColor: COLORS.white, color: COLORS.text, colorScheme: "light" as const,
+    appearance: "auto" as const
+  }
+};
