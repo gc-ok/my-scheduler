@@ -301,7 +301,6 @@ export function generateSchedule(config: ScheduleConfig) {
     }
   });
 
-  const totalElectiveSections = electiveCourses.reduce((sum, c) => sum + (c.sections || 0), 0);
   const totalElectiveDemand = studentCount * electiveSlotsPerStudent;
   
   // 1. Pre-calculate total sections to ensure accurate enrollment distribution
