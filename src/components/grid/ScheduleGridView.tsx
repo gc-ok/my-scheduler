@@ -238,9 +238,10 @@ interface ScheduleGridViewProps {
   setSchedule: (s: any) => void;
   onRegenerate: () => void;
   onBackToConfig: () => void;
+  onExport: () => void;
 }
 
-export default function ScheduleGridView({ schedule, config, setSchedule, onRegenerate, onBackToConfig }: ScheduleGridViewProps) {
+export default function ScheduleGridView({ schedule, config, setSchedule, onRegenerate, onBackToConfig, onExport }: ScheduleGridViewProps) {
   const [vm, setVm] = useState("grid");
   const [dragItem, setDI] = useState<Section | null>(null);
   const [fDept, setFD] = useState("all");
@@ -394,6 +395,7 @@ export default function ScheduleGridView({ schedule, config, setSchedule, onRege
           <button onClick={onRegenerate} style={btnStyle("transparent", COLORS.primary, false, `1px solid ${COLORS.primary}`)}>🔀 Quick Regen</button>
           <button onClick={addBlankClass} style={btnStyle(COLORS.success, COLORS.white)}>➕ Add Class</button>
           <button onClick={() => setShowPLCModal(true)} style={btnStyle(COLORS.accent, COLORS.white)}>🤝 Organize PLCs</button>
+          <button onClick={onExport} style={btnStyle(COLORS.primary, COLORS.white)}>⬇️ Export CSV</button>
         </div>
         <div style={{ fontSize: 12, color: COLORS.textLight }}>
           {plcGroups.length} PLC Groups · {teacherAvail.length} Custom Availabilities

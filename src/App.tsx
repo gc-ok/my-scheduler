@@ -111,6 +111,49 @@ export default function App() {
     });
   };
 
+  // NEW: Export Schedule to CSV for SIS Import
+  const exportCSV = () => {
+    if (!schedule?.sections) return;
+
+    // Standard SIS Import Headers
+    const headers = [
+      "Course ID", "Course Name", "Section ID", "Section Number", 
+      "Teacher ID", "Teacher Name", "Room", "Period", "Term", 
+      "Enrollment", "Max Size"
+    ];
+
+    // Map data to CSV rows
+    const rows = schedule.sections.map((s: any) => {
+      // Helper to escape commas/quotes for CSV format
+      const safe = (val: any) => `"${String(val || '').replace(/"/g, '""')}"`;
+      
+      return [
+        safe(s.courseId),
+        safe(s.courseName),
+        safe(s.id),           // Unique Section ID (e.g. MAT101-S1)
+        s.sectionNum,
+        safe(s.teacher),      // Teacher ID
+        safe(s.teacherName),
+        safe(s.room),
+        safe(s.period),
+        "FY",                 // Defaulting to Full Year (adjust if using semesters)
+        s.enrollment,
+        s.maxSize
+      ].join(",");
+    });
+
+    // Combine headers and rows, then trigger download
+    const csvContent = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `master_schedule_export_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const rootStyle = { minHeight: "100vh", background: COLORS.offWhite, fontFamily: "'Segoe UI', system-ui, sans-serif", colorScheme: "light", color: COLORS.text };
 
   // NEW: Display a loading overlay while the background worker is running
@@ -138,7 +181,7 @@ export default function App() {
             {schedule.stats?.scheduledCount}/{schedule.stats?.totalSections} scheduled · {schedule.stats?.conflictCount} conflicts
           </div>
         </div>
-        <ScheduleGridView schedule={schedule} config={config} setSchedule={setSchedule} onRegenerate={regen} onBackToConfig={() => setStep(9)} />
+        <ScheduleGridView schedule={schedule} config={config} setSchedule={setSchedule} onRegenerate={regen} onBackToConfig={() => setStep(9)} onExport={exportCSV} />
       </div>
     );
   }
