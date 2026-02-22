@@ -10,7 +10,7 @@ interface StepProps {
 
 export function RecessStep({ config: c, setConfig, onNext, onBack }: StepProps) {
   const pc = c.periodsCount || 7;
-  const recess = c.recessConfig || {};
+  const recess = c.recessConfig || {} as any;
 
   const update = (field: string, val: any) => {
     setConfig({ ...c, recessConfig: { ...recess, [field]: val } });

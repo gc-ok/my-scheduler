@@ -66,8 +66,8 @@ class StructuredLogger {
 export function generateSchedule(config: ScheduleConfig) {
   const {
     teachers = [], courses = [], rooms = [], constraints = [],
-    lunchConfig = {}, winConfig = {}, plcEnabled = false,
-    recessConfig = {}, // NEW: Destructure recess config
+    lunchConfig = {} as any, winConfig = {} as any, plcEnabled = false,
+    recessConfig = {} as any, // NEW: Destructure recess config
     studentCount = 800, maxClassSize = 30, planPeriodsPerDay,
     schoolStart = "08:00", schoolEnd = "15:00",
     passingTime = 5, scheduleMode = "period_length",
@@ -336,7 +336,7 @@ export function generateSchedule(config: ScheduleConfig) {
         id: `${c.id}-S${s+1}`, courseId: c.id, courseName: c.name, 
         sectionNum: s+1, maxSize: c.maxSize || maxClassSize, 
         enrollment: Math.min(enroll, c.maxSize || maxClassSize),
-        department: c.department, roomType: c.roomType || "regular",
+        department: c.department, gradeLevel: c.gradeLevel, roomType: c.roomType || "regular",
         isCore: true, teacher: null, room: null, period: null,
         isSingleton: num === 1
       });
@@ -385,7 +385,7 @@ export function generateSchedule(config: ScheduleConfig) {
         id: `${c.id}-S${s+1}`, courseId: c.id, courseName: c.name,
         sectionNum: s+1, maxSize: size, 
         enrollment: Math.min(currentEnrollment, size), // Cap at maxSize
-        department: c.department, roomType: c.roomType || "regular",
+        department: c.department, gradeLevel: c.gradeLevel, roomType: c.roomType || "regular",
         isCore: false, teacher: null, room: null, period: null,
         isSingleton: num === 1
       });
@@ -450,25 +450,30 @@ export function generateSchedule(config: ScheduleConfig) {
   if (isSplitLunch && lunchPid) {
     const univLunchPid = toUniv(lunchPid);
     const lunchSections = sections.filter(s => s.period === univLunchPid && !s.hasConflict);
-    const depts = [...new Set(lunchSections.map(s => s.department))];
-    const deptWaveMap: Record<string, number> = {};
+    
+    // ELEMENTARY FIX: Group by Grade Level if elementary, otherwise Department
+    const isElem = config.schoolType === "elementary" || config.schoolType === "k8";
+    const groupKey = (s: Section) => isElem ? (s.gradeLevel || s.department) : s.department;
+
+    const groups = [...new Set(lunchSections.map(s => groupKey(s)))];
+    const groupWaveMap: Record<string, number> = {};
     const waveCounts: number[] = Array(numWaves).fill(0);
     
-    depts.sort((a,b) => {
-      const countA = lunchSections.filter(s => s.department === a).length;
-      const countB = lunchSections.filter(s => s.department === b).length;
+    groups.sort((a,b) => {
+      const countA = lunchSections.filter(s => groupKey(s) === a).length;
+      const countB = lunchSections.filter(s => groupKey(s) === b).length;
       return countB - countA;
     });
 
-    depts.forEach(dept => {
-      const deptSecs = lunchSections.filter(s => s.department === dept);
+    groups.forEach(group => {
+      const deptSecs = lunchSections.filter(s => groupKey(s) === group);
       const studentCountInDept = deptSecs.reduce((sum, s) => sum + s.enrollment, 0);
       let bestWave = 0; let minVal = Infinity;
       for(let w=0; w<numWaves; w++) { if(waveCounts[w] < minVal) { minVal = waveCounts[w]; bestWave = w; } }
-      deptWaveMap[dept] = bestWave + 1; waveCounts[bestWave] += studentCountInDept;
+      groupWaveMap[group] = bestWave + 1; waveCounts[bestWave] += studentCountInDept;
     });
     
-    lunchSections.forEach(s => { s.lunchWave = deptWaveMap[s.department]; });
+    lunchSections.forEach(s => { s.lunchWave = groupWaveMap[groupKey(s)]; });
   }
 
   const periodStudentData: Record<string, any> = {};

@@ -56,6 +56,7 @@ export interface Section {
   maxSize: number;
   enrollment: number;
   department: string;
+  gradeLevel?: string; // NEW: Carried over from Course for Elementary grouping
   roomType: string;
   isCore: boolean;
   
