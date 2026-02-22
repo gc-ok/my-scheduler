@@ -6,6 +6,7 @@ import WizardController from "./views/wizard/WizardController";
 import { Logo } from "./components/ui/CoreUI"; 
 import { ScheduleConfig, Section } from "./types";
 import { buildScheduleConfig } from "./utils/scheduleConfig";
+import { saveToDB, loadFromDB } from "./utils/db";
 
 export default function App() {
   const [step, setStep] = useState<number>(0);
@@ -18,6 +19,38 @@ export default function App() {
   // NEW: Ref to hold the worker instance
   const workerRef = useRef<Worker | null>(null);
 
+  // --- PERSISTENCE LOGIC ---
+  
+  // 1. Load state from IndexedDB on mount
+  useEffect(() => {
+    const restoreSession = async () => {
+      try {
+        const savedConfig = await loadFromDB("config");
+        const savedStep = await loadFromDB("step");
+        const savedSchedule = await loadFromDB("schedule");
+
+        if (savedConfig) setConfig(savedConfig);
+        // Only restore step if we have a config, otherwise start at 0
+        if (savedStep !== undefined && savedConfig) setStep(savedStep);
+        if (savedSchedule) setSchedule(savedSchedule);
+      } catch (err) {
+        console.warn("Could not restore session:", err);
+      }
+    };
+    restoreSession();
+  }, []);
+
+  // 2. Auto-save Config & Step (Debounced to prevent thrashing)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (Object.keys(config).length > 0) {
+        saveToDB("config", config);
+        saveToDB("step", step);
+      }
+    }, 1000); // Wait 1 second after last change
+    return () => clearTimeout(timer);
+  }, [config, step]);
+
   // NEW: Initialize the Web Worker on component mount
   useEffect(() => {
     workerRef.current = new Worker(new URL('./core/worker.ts', import.meta.url), { type: 'module' });
@@ -27,6 +60,11 @@ export default function App() {
       setIsGenerating(false);
 
       if (status === 'SUCCESS') {
+        // 3. Save Schedule (Strip heavy logs first)
+        // We remove 'logs' and 'placementHistory' to save space/memory
+        const { logs, placementHistory, ...leanSchedule } = data;
+        saveToDB("schedule", leanSchedule);
+
         setSchedule(data);
         setStep(99);
       } else {
