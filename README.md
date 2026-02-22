@@ -40,3 +40,65 @@ As discussed during architectural planning, the following core features are nece
 ### 5. True Student Cohort Matrixing
 * **The Issue:** The current algorithm focuses on *Seat Coverage* (making sure 800 seats exist in Period 1). It does not track actual student schedules.
 * **The Fix:** Advanced feature implementation. We will need to define `Student` objects or "Cohorts" (e.g., "9th Grade Honors"). If a cohort needs AP Bio and Band, the engine must add massive cost penalties if it schedules those two singletons in the same period, forcing students to choose.
+
+## Directory Structure
+my-scheduler/
+├── public/                     # Static assets served directly without Vite processing
+│   └── vite.svg                # Vite logo icon
+├── src/                        # Main application source code
+│   ├── assets/                 # Processed static assets (images, icons)
+│   │   └── react.svg           # React logo icon
+│   ├── components/             # Reusable React UI components
+│   │   ├── grid/               # Components for the final generated schedule view
+│   │   │   ├── MasterGrid.tsx       # Main combined grid layout
+│   │   │   ├── RoomGrid.tsx         # Schedule view organized by rooms
+│   │   │   ├── ScheduleGridView.tsx # Core wrapper for displaying the finished schedule
+│   │   │   └── TeacherGrid.tsx      # Schedule view organized by teachers
+│   │   ├── modals/             # Popup dialog components
+│   │   │   ├── PLCOrganizerModal.jsx        # UI for creating and managing PLCs
+│   │   │   └── TeacherAvailabilityModal.jsx # UI for managing teacher blocked periods
+│   │   └── ui/
+│   │       └── CoreUI.tsx      # Shared atomic UI elements (Buttons, Logos, Cards)
+│   ├── core/                   # The algorithmic brain of the application
+│   │   ├── strategies/         # Specialized scheduling algorithms
+│   │   │   ├── Block4x4Strategy.ts   # Logic for 4x4 block schedules
+│   │   │   └── ScheduleStrategies.ts # Standard/AB/Trimester scheduling logic
+│   │   ├── engine.ts           # The main master schedule generation engine
+│   │   ├── ResourceTracker.ts  # Tracks teacher and room availability during generation
+│   │   └── worker.ts           # Web Worker to run the engine in the background
+│   ├── types/                  # TypeScript interface definitions
+│   │   └── index.ts            # Core data models (Teacher, Section, Config, etc.)
+│   ├── utils/                  # Helper functions and constants
+│   │   ├── ScheduleConfig.ts   # Utilities for parsing and building the schedule config
+│   │   └── theme.ts            # Global color palette and styling constants
+│   ├── views/                  # High-level page views
+│   │   ├── wizard/             # The multi-step setup flow for creating a schedule
+│   │   │   ├── steps/          # Individual screens for the wizard flow
+│   │   │   │   ├── BellScheduleStep.tsx # Timeframe and period length config
+│   │   │   │   ├── ConstraintsStep.tsx  # Hard locks and scheduling rules
+│   │   │   │   ├── CSVUploadStep.tsx    # Bulk data import handler
+│   │   │   │   ├── LunchStep.tsx        # Split/Unit/Multi-period lunch config
+│   │   │   │   ├── PlanPLCStep.tsx      # Planning and Professional Learning Communities
+│   │   │   │   ├── RecessStep.tsx       # Elementary recess duty/time config
+│   │   │   │   ├── ScheduleTypeStep.tsx # Standard vs Block vs Trimester selection
+│   │   │   │   ├── SchoolTypeStep.tsx   # Elementary vs Middle vs High School setup
+│   │   │   │   ├── WINTimeStep.tsx      # "What I Need" / Intervention time config
+│   │   │   │   ├── DataInputStep.tsx    # Manual data entry hub
+│   │   │   │   ├── GenericInputStep.tsx # Quick-setup input forms
+│   │   │   │   └── index.ts             # Exports all steps for easy importing
+│   │   │   └── WizardController.tsx     # Manages state and routing between wizard steps
+│   │   └── WizardSteps.jsx     # Legacy/Alternative wizard component structure
+│   ├── App.css                 # Global application styling
+│   ├── App.tsx                 # Root React component connecting the Wizard and Engine
+│   ├── index.css               # Base CSS reset and font imports
+│   └── main.jsx                # React DOM entry point
+├── .gitignore                  # Specifies intentionally untracked files to ignore
+├── eslint.config.js            # Linter configuration for code quality
+├── index.html                  # Main HTML entry point for the Vite application
+├── package.json                # Project metadata, scripts, and dependencies
+├── package-lock.json           # Exact dependency version tree
+├── README.md                   # Project documentation
+├── tsconfig.json               # TypeScript compiler configuration for the frontend
+├── tsconfig.node.json          # TypeScript compiler configuration for Vite/Node
+├── vite.config.ts              # Vite bundler configuration
+└── oldengine.txt / formerappjsx.txt # Archived/Legacy reference files
