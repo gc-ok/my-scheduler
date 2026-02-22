@@ -1,19 +1,20 @@
 import { COLORS } from "../../../utils/theme";
 import { Btn, NumInput, Toggle } from "../../../components/ui/CoreUI";
+import { ScheduleConfig, RecessConfig } from "../../../types";
 
 interface StepProps {
-  config: any;
-  setConfig: (config: any) => void;
+  config: Partial<ScheduleConfig>;
+  setConfig: (config: Partial<ScheduleConfig>) => void;
   onNext: () => void;
   onBack: () => void;
 }
 
 export function RecessStep({ config: c, setConfig, onNext, onBack }: StepProps) {
   const pc = c.periodsCount || 7;
-  const recess = c.recessConfig || {} as any;
+  const recess: Partial<RecessConfig> = c.recessConfig || {};
 
-  const update = (field: string, val: any) => {
-    setConfig({ ...c, recessConfig: { ...recess, [field]: val } });
+  const update = (field: keyof RecessConfig, val: boolean | number | string) => {
+    setConfig({ ...c, recessConfig: { ...recess, [field]: val } as RecessConfig });
   };
 
   return (

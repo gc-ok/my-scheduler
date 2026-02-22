@@ -1,7 +1,46 @@
 // src/core/engine.ts
-import { ScheduleConfig, Section, Period } from '../types';
+import { ScheduleConfig, Section, Period, PlcGroup, RecessConfig } from '../types';
 import { ResourceTracker } from './ResourceTracker';
-import { StandardStrategy, ABStrategy, Block4x4Strategy, TrimesterStrategy } from './strategies/ScheduleStrategies';
+import { BaseStrategy, StandardStrategy, ABStrategy, Block4x4Strategy, TrimesterStrategy } from './strategies/ScheduleStrategies';
+
+// --- Seeded PRNG (Mulberry32) for deterministic scheduling ---
+// Given the same seed, produces the same sequence of random numbers every time.
+function createSeededRng(seed: number): () => number {
+  let s = seed | 0;
+  return () => {
+    s = (s + 0x6D2B79F5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Fisher-Yates shuffle using seeded RNG
+function seededShuffle<T>(arr: T[], rng: () => number): T[] {
+  const result = [...arr];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+// Derive a deterministic seed from config inputs
+function deriveConfigSeed(config: ScheduleConfig): number {
+  const str = JSON.stringify({
+    t: (config.teachers || []).length,
+    c: (config.courses || []).length,
+    r: (config.rooms || []).length,
+    s: config.studentCount,
+    p: config.periodsCount,
+    type: config.scheduleType,
+  });
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  }
+  return hash;
+}
 
 // --- Time Utilities ---
 const toMins = (t?: string): number => { 
@@ -19,28 +58,50 @@ const toTime = (mins: number): string => {
 };
 
 // --- Structured Logger ---
+interface LogEntry {
+  timestamp: number;
+  level: string;
+  msg: string;
+  data: Record<string, unknown> | null;
+}
+
+interface PeriodEvaluation {
+  period: string;
+  cost: number;
+  reasons: string[];
+}
+
+interface PlacementRecord {
+  sectionId: string;
+  course: string;
+  assignedPeriod?: string | number;
+  costScore?: number;
+  evaluations: PeriodEvaluation[];
+  status: "SUCCESS" | "FAILED";
+}
+
 class StructuredLogger {
-  logs: { timestamp: number; level: string; msg: string; data: any }[];
-  placementHistory: any[];
+  logs: LogEntry[];
+  placementHistory: PlacementRecord[];
 
   constructor() {
     this.logs = [];
     this.placementHistory = [];
   }
 
-  info(msg: string, data: any = null) {
+  info(msg: string, data: Record<string, unknown> | null = null) {
     this.logs.push({ timestamp: Date.now(), level: "INFO", msg, data });
   }
 
-  warn(msg: string, data: any = null) {
+  warn(msg: string, data: Record<string, unknown> | null = null) {
     this.logs.push({ timestamp: Date.now(), level: "WARN", msg, data });
   }
 
-  error(msg: string, data: any = null) {
+  error(msg: string, data: Record<string, unknown> | null = null) {
     this.logs.push({ timestamp: Date.now(), level: "ERROR", msg, data });
   }
 
-  logPlacement(section: Section, period: string | number, finalCost: number, evaluations: any[]) {
+  logPlacement(section: Section, period: string | number, finalCost: number, evaluations: PeriodEvaluation[]) {
     this.placementHistory.push({
       sectionId: section.id,
       course: section.courseName,
@@ -51,7 +112,7 @@ class StructuredLogger {
     });
   }
 
-  logFailure(section: Section, evaluations: any[]) {
+  logFailure(section: Section, evaluations: PeriodEvaluation[]) {
     this.placementHistory.push({
       sectionId: section.id,
       course: section.courseName,
@@ -64,18 +125,23 @@ class StructuredLogger {
 
 // --- Main Scheduling Engine ---
 export function generateSchedule(config: ScheduleConfig, onProgress?: (msg: string, pct: number) => void) {
+  const rng = createSeededRng(deriveConfigSeed(config));
+
   const {
     teachers = [], courses = [], cohorts = [], rooms = [], constraints = [],
-    lunchConfig = {} as any, winConfig = {} as any, plcEnabled = false,
-    recessConfig = {} as any, // NEW: Destructure recess config
+    plcEnabled = false,
     studentCount = 800, maxClassSize = 30, planPeriodsPerDay,
     schoolStart = "08:00", schoolEnd = "15:00",
     passingTime = 5, scheduleMode = "period_length",
     periods = [],
   } = config;
 
+  const lunchConfig: NonNullable<ScheduleConfig['lunchConfig']> = config.lunchConfig ?? {};
+  const winConfig: NonNullable<ScheduleConfig['winConfig']> = config.winConfig ?? {};
+  const recessConfig: RecessConfig = config.recessConfig ?? { enabled: false, duration: 20, afterPeriod: 2 };
+
   const logger = new StructuredLogger();
-  const conflicts: any[] = [];
+  const conflicts: { type: string; message: string; sectionId?: string; teacherId?: string }[] = [];
 
   logger.info("🚀 Starting Robust Schedule Generation...", { mode: scheduleMode });
 
@@ -268,7 +334,7 @@ export function generateSchedule(config: ScheduleConfig, onProgress?: (msg: stri
     teachers.forEach(t => tracker.blockTeacher(t.id, toUniv("RECESS"), "RECESS"));
   }
 
-  let finalPlcGroups: any[] = []; 
+  let finalPlcGroups: PlcGroup[] = [];
 
   if (plcEnabled) {
     const hasValidCustomGroups = Array.isArray(config.plcGroups) && 
@@ -420,7 +486,7 @@ export function generateSchedule(config: ScheduleConfig, onProgress?: (msg: stri
   const intendedLoad: Record<string, number> = {};
   teachers.forEach(t => intendedLoad[t.id] = 0);
 
-  [...sections].sort(() => Math.random() - 0.5).forEach(sec => {
+  seededShuffle(sections, rng).forEach(sec => {
     const candidates = teachers.filter(t => (t.departments||[]).includes(sec.department));
     const pool = candidates.length > 0 ? candidates : teachers; 
     
@@ -454,19 +520,19 @@ export function generateSchedule(config: ScheduleConfig, onProgress?: (msg: stri
     tracker.assignPlacement(s, s.period!, s.teacher || "", s.coTeacher || null, s.room || "", 'FY');
   });
 
-  let strategy: any;
+  let strategy: BaseStrategy;
   if (config.scheduleType === "ab_block") {
     logger.info("Engaging A/B Block Strategy...");
-    strategy = new ABStrategy(tracker, config, logger);
+    strategy = new ABStrategy(tracker, config, logger, rng);
   } else if (config.scheduleType === "4x4_block") {
     logger.info("Engaging 4x4 Semester Block Strategy...");
-    strategy = new Block4x4Strategy(tracker, config, logger);
+    strategy = new Block4x4Strategy(tracker, config, logger, rng);
   } else if (config.scheduleType === "trimester") {
     logger.info("Engaging Trimester Strategy...");
-    strategy = new TrimesterStrategy(tracker, config, logger);
+    strategy = new TrimesterStrategy(tracker, config, logger, rng);
   } else {
     logger.info("Engaging Standard Strategy Engine...");
-    strategy = new StandardStrategy(tracker, config, logger);
+    strategy = new StandardStrategy(tracker, config, logger, rng);
   }
   
   if (onProgress) onProgress("Running Scheduling Algorithm...", 60);
@@ -505,7 +571,7 @@ export function generateSchedule(config: ScheduleConfig, onProgress?: (msg: stri
 
   if (onProgress) onProgress("Finalizing & Analyzing...", 90);
 
-  const periodStudentData: Record<string, any> = {};
+  const periodStudentData: Record<string, { seatsInClass: number; unaccounted: number; atLunch: number | string; sectionCount: number }> = {};
   const isAB = config.scheduleType === "ab_block";
   const is4x4 = config.scheduleType === "4x4_block";
   const isTri = config.scheduleType === "trimester";
@@ -568,8 +634,8 @@ export function generateSchedule(config: ScheduleConfig, onProgress?: (msg: stri
     }
   });
 
-  const uiTeacherSchedule: Record<string, Record<string, any>> = {};
-  const uiRoomSchedule: Record<string, Record<string, any>> = {};
+  const uiTeacherSchedule: Record<string, Record<string, string>> = {};
+  const uiRoomSchedule: Record<string, Record<string, string>> = {};
 
   teachers.forEach(t => uiTeacherSchedule[t.id] = {});
   rooms.forEach(r => uiRoomSchedule[r.id] = {});

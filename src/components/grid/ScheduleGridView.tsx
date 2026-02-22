@@ -405,11 +405,12 @@ export default function ScheduleGridView({ schedule, config, setSchedule, onRege
       <div style={{ background: COLORS.offWhite, padding: "6px 16px", borderBottom: `1px solid ${COLORS.lightGray}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", gap: 3, overflowX: "auto" }}>
           {viewTabs.map(v => (
-            <div key={v.id} onClick={() => setVm(v.id)} style={{
+            <button key={v.id} onClick={() => setVm(v.id)} aria-pressed={vm === v.id} style={{
               padding: "5px 12px", borderRadius: 6, cursor: "pointer", fontSize: 12, whiteSpace: "nowrap",
               background: vm === v.id ? COLORS.primary : "transparent",
               color: vm === v.id ? COLORS.white : COLORS.text, fontWeight: vm === v.id ? 600 : 400,
-            }}>{v.label}</div>
+              border: "none", fontFamily: "inherit",
+            }}>{v.label}</button>
           ))}
         </div>
         <select value={fDept} onChange={e => setFD(e.target.value)} style={{ padding: "4px 8px", fontSize: 12, borderRadius: 4, border: `1px solid ${COLORS.lightGray}` }}>

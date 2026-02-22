@@ -1,33 +1,25 @@
 import { useState, useEffect, useRef } from "react";
-import { COLORS } from "./utils/theme";
-// Note: Removed the direct import of generateSchedule from here
 import ScheduleGridView from "./components/grid/ScheduleGridView";
 import WizardController from "./views/wizard/WizardController";
-import { Logo } from "./components/ui/CoreUI"; 
+import { Logo } from "./components/ui/CoreUI";
 import { ScheduleConfig, Section } from "./types";
 import { buildScheduleConfig } from "./utils/scheduleConfig";
 import { saveToDB, loadFromDB } from "./utils/db";
 import { validateConfig } from "./utils/validator";
+import css from "./App.module.css";
 
 export default function App() {
   const [step, setStep] = useState<number>(0);
   const [config, setConfig] = useState<Partial<ScheduleConfig>>({});
   const [schedule, setSchedule] = useState<any>(null);
   const [isDataLoaded, setIsDataLoaded] = useState<boolean>(false);
-  
-  // NEW: State to track when the worker is processing
+
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [genProgress, setGenProgress] = useState({ msg: "Starting...", pct: 0 });
-  
-  // NEW: Error State for graceful UI feedback
   const [errorState, setErrorState] = useState<{ title: string; messages: string[] } | null>(null);
-  
-  // NEW: Ref to hold the worker instance
   const workerRef = useRef<Worker | null>(null);
 
   // --- PERSISTENCE LOGIC ---
-  
-  // 1. Load state from IndexedDB on mount
   useEffect(() => {
     const restoreSession = async () => {
       try {
@@ -36,20 +28,17 @@ export default function App() {
         const savedSchedule = await loadFromDB("schedule");
 
         if (savedConfig) setConfig(savedConfig);
-        // Only restore step if we have a config, otherwise start at 0
         if (savedStep !== undefined && savedConfig) setStep(savedStep);
         if (savedSchedule) setSchedule(savedSchedule);
       } catch (err) {
         console.warn("Could not restore session:", err);
-      }
-      finally {
+      } finally {
         setIsDataLoaded(true);
       }
     };
     restoreSession();
   }, []);
 
-  // 2. Auto-save Config & Step (Debounced to prevent thrashing)
   useEffect(() => {
     if (!isDataLoaded) return;
     const timer = setTimeout(() => {
@@ -57,17 +46,16 @@ export default function App() {
         saveToDB("config", config);
         saveToDB("step", step);
       }
-    }, 1000); // Wait 1 second after last change
+    }, 1000);
     return () => clearTimeout(timer);
   }, [config, step, isDataLoaded]);
 
-  // NEW: Initialize the Web Worker on component mount
   useEffect(() => {
     workerRef.current = new Worker(new URL('./core/worker.ts', import.meta.url), { type: 'module' });
-    
+
     workerRef.current.onmessage = (e) => {
       const { status, data, error, message, percentage } = e.data;
-      
+
       if (status === 'PROGRESS') {
         setGenProgress({ msg: message, pct: percentage });
         return;
@@ -75,11 +63,8 @@ export default function App() {
 
       setIsGenerating(false);
       if (status === 'SUCCESS') {
-        // 3. Save Schedule (Strip heavy logs first)
-        // We remove 'logs' and 'placementHistory' to save space/memory
         const { logs, placementHistory, ...leanSchedule } = data;
         saveToDB("schedule", leanSchedule);
-
         setSchedule(data);
         setStep(99);
       } else {
@@ -88,14 +73,10 @@ export default function App() {
       }
     };
 
-    // Cleanup worker on unmount
-    return () => {
-      workerRef.current?.terminate();
-    };
+    return () => { workerRef.current?.terminate(); };
   }, []);
 
   const gen = () => {
-    // 1. Validate Data before sending to worker
     setErrorState(null);
     const validationErrors = validateConfig(config);
     if (validationErrors.length > 0) {
@@ -106,7 +87,6 @@ export default function App() {
     setIsGenerating(true);
     const finalConfig = buildScheduleConfig(config);
     setGenProgress({ msg: "Initializing...", pct: 0 });
-    // Send message to the background worker
     workerRef.current?.postMessage({ action: 'GENERATE', config: finalConfig });
   };
 
@@ -118,105 +98,80 @@ export default function App() {
     const lockedSections = schedule.sections.filter((s: Section) => s.locked);
     const manualSections = schedule.sections.filter((s: Section) => s.isManual && !s.locked);
     const sizeOverrides = schedule.sections
-        .filter((s: Section) => s.enrollment !== s.maxSize && !s.isManual)
-        .map((s: Section) => ({ sectionId: s.id, enrollment: s.enrollment }));
+      .filter((s: Section) => s.enrollment !== s.maxSize && !s.isManual)
+      .map((s: Section) => ({ sectionId: s.id, enrollment: s.enrollment }));
 
     const regenConfig = { ...buildScheduleConfig(config), lockedSections, manualSections };
-    
-    // Send the regeneration request to the worker
-    workerRef.current?.postMessage({ 
-      action: 'GENERATE_WITH_OVERRIDES', 
-      config: regenConfig, 
-      sizeOverrides 
-    });
+    workerRef.current?.postMessage({ action: 'GENERATE_WITH_OVERRIDES', config: regenConfig, sizeOverrides });
   };
 
-  // NEW: Export Schedule to CSV for SIS Import
   const exportCSV = () => {
     if (!schedule?.sections) return;
 
-    // Standard SIS Import Headers
     const headers = [
-      "Course ID", "Course Name", "Section ID", "Section Number", 
-      "Teacher ID", "Teacher Name", "Room", "Period", "Term", 
+      "Course ID", "Course Name", "Section ID", "Section Number",
+      "Teacher ID", "Teacher Name", "Room", "Period", "Term",
       "Enrollment", "Max Size"
     ];
 
-    // Map data to CSV rows
-    const rows = schedule.sections.map((s: any) => {
-      // Helper to escape commas/quotes for CSV format
-      const safe = (val: any) => `"${String(val || '').replace(/"/g, '""')}"`;
-      
-      return [
-        safe(s.courseId),
-        safe(s.courseName),
-        safe(s.id),           // Unique Section ID (e.g. MAT101-S1)
-        s.sectionNum,
-        safe(s.teacher),      // Teacher ID
-        safe(s.teacherName),
-        safe(s.room),
-        safe(s.period),
-        "FY",                 // Defaulting to Full Year (adjust if using semesters)
-        s.enrollment,
-        s.maxSize
-      ].join(",");
-    });
+    const safe = (val: string | number | null | undefined) => `"${String(val || '').replace(/"/g, '""')}"`;
 
-    // Combine headers and rows, then trigger download
+    const rows = schedule.sections.map((s: Section) => [
+      safe(s.courseId), safe(s.courseName), safe(s.id), s.sectionNum,
+      safe(s.teacher), safe(s.teacherName), safe(s.room), safe(s.period),
+      s.term || "FY", s.enrollment, s.maxSize
+    ].join(","));
+
     const csvContent = [headers.join(","), ...rows].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `master_schedule_export_${new Date().toISOString().slice(0,10)}.csv`);
+    link.setAttribute("download", `master_schedule_export_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  const rootStyle = { minHeight: "100vh", background: COLORS.offWhite, fontFamily: "'Segoe UI', system-ui, sans-serif", colorScheme: "light", color: COLORS.text };
-
-  // NEW: Reusable Error Modal Component
   const ErrorModal = () => (
-    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10000 }}>
-      <div style={{ background: COLORS.white, padding: 30, borderRadius: 12, maxWidth: 500, width: "90%", boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>
-        <h3 style={{ margin: "0 0 15px 0", color: COLORS.danger }}>⚠️ {errorState?.title}</h3>
-        <ul style={{ paddingLeft: 20, marginBottom: 20, color: COLORS.text, maxHeight: 300, overflowY: "auto" }}>
-          {errorState?.messages.map((m, i) => <li key={i} style={{ marginBottom: 6 }}>{m}</li>)}
+    <div className={css.errorOverlay} role="dialog" aria-modal="true" aria-labelledby="error-title">
+      <div className={css.errorModal}>
+        <h3 id="error-title" className={css.errorTitle}>{errorState?.title}</h3>
+        <ul className={css.errorList}>
+          {errorState?.messages.map((m, i) => <li key={i}>{m}</li>)}
         </ul>
-        <button onClick={() => setErrorState(null)} style={{ padding: "10px 20px", background: COLORS.primary, color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, width: "100%" }}>
+        <button className={css.errorDismiss} onClick={() => setErrorState(null)}>
           Dismiss & Fix
         </button>
       </div>
     </div>
   );
 
-  // NEW: Display a loading overlay while the background worker is running
   if (isGenerating) {
     return (
-      <div style={{ ...rootStyle, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+      <div className={css.loadingRoot}>
         <Logo size={60} />
-        <h2 style={{ marginTop: 20, color: COLORS.primary }}>Generating Master Schedule...</h2>
-        <div style={{ width: 300, height: 6, background: COLORS.lightGray, borderRadius: 3, marginTop: 15, overflow: "hidden" }}>
-          <div style={{ width: `${genProgress.pct}%`, height: "100%", background: COLORS.primary, transition: "width 0.3s ease" }} />
+        <h2 className={css.loadingTitle}>Generating Master Schedule...</h2>
+        <div className={css.progressBar}>
+          <div className={css.progressFill} style={{ width: `${genProgress.pct}%` }} />
         </div>
-        <p style={{ color: COLORS.textLight, fontSize: 12, marginTop: 8 }}>{genProgress.msg} ({genProgress.pct}%)</p>
+        <p className={css.progressText}>{genProgress.msg} ({genProgress.pct}%)</p>
       </div>
     );
   }
 
   if (step === 99 && schedule) {
     return (
-      <div style={rootStyle}>
+      <div className={css.root}>
         {errorState && <ErrorModal />}
-        <div style={{ background: COLORS.white, padding: "10px 20px", borderBottom: `1px solid ${COLORS.lightGray}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        <div className={css.scheduleHeader}>
+          <div className={css.scheduleHeaderLeft}>
             <Logo size={30} />
-            <div style={{ fontSize: 13, color: COLORS.textLight }}>
+            <div className={css.scheduleHeaderInfo}>
               {config.schoolType} · {config.scheduleType?.replace(/_/g, " ")} · {config.periodsCount || 7} periods
             </div>
           </div>
-          <div style={{ fontSize: 12, color: COLORS.textLight }}>
+          <div className={css.scheduleHeaderStats}>
             {schedule.stats?.scheduledCount}/{schedule.stats?.totalSections} scheduled · {schedule.stats?.conflictCount} conflicts
           </div>
         </div>
@@ -226,7 +181,7 @@ export default function App() {
   }
 
   return (
-    <div style={rootStyle}>
+    <div className={css.root}>
       {errorState && <ErrorModal />}
       <WizardController step={step} setStep={setStep} config={config} setConfig={setConfig} onComplete={gen} />
     </div>

@@ -81,9 +81,7 @@ export class ResourceTracker {
     }
     
     section.period = timeSlotId;
-    
-    // Using a quick any cast here just in case 'term' isn't explicitly in your Section interface yet
-    (section as any).term = term; 
+    section.term = term;
   }
 
   removePlacement(sectionId: string, timeSlotId: string | number, teacherId: string | null | undefined, coTeacherId: string | null | undefined, roomId: string | null | undefined, term: string = 'FY') {

@@ -25,7 +25,8 @@ self.onmessage = (e: MessageEvent<{
 
     // 3. Send the completed schedule back to the main thread
     self.postMessage({ status: 'SUCCESS', data: result });
-  } catch (error: any) {
-    self.postMessage({ status: 'ERROR', error: error.message || "An unknown error occurred during generation." });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "An unknown error occurred during generation.";
+    self.postMessage({ status: 'ERROR', error: message });
   }
 };

@@ -57,7 +57,7 @@ export function ConstraintsStep({ config: c, setConfig, onNext, onBack }: StepPr
             return (
               <div key={a.teacherId} style={{ display: "flex", justifyContent: "space-between", padding: 8, background: "#FFF4E5", borderRadius: 6, marginBottom: 8, fontSize: 13 }}>
                 <div><strong>{tName}</strong> is UNAVAILABLE during: {pLabels}</div>
-                <div onClick={() => setAvail(avail.filter(x => x.teacherId !== a.teacherId))} style={{ cursor: "pointer", color: COLORS.danger }}>✕</div>
+                <button aria-label={`Remove ${tName}`} onClick={() => setAvail(avail.filter(x => x.teacherId !== a.teacherId))} style={{ cursor: "pointer", color: COLORS.danger, background: "none", border: "none", fontSize: "inherit", fontFamily: "inherit" }}>✕</button>
               </div>
             );
           })}
@@ -73,10 +73,10 @@ export function ConstraintsStep({ config: c, setConfig, onNext, onBack }: StepPr
                     {periods.map((p: any) => {
                       const isBlocked = na.blockedPeriods.includes(p.id);
                       return (
-                        <div key={p.id} onClick={() => setNa({ ...na, blockedPeriods: isBlocked ? na.blockedPeriods.filter(id => id !== p.id) : [...na.blockedPeriods, p.id] })}
-                          style={{ padding: "6px 12px", borderRadius: 20, fontSize: 12, cursor: "pointer", border: `1px solid ${isBlocked ? COLORS.danger : COLORS.lightGray}`, background: isBlocked ? COLORS.danger : COLORS.white, color: isBlocked ? COLORS.white : COLORS.text }}>
+                        <button key={p.id} aria-pressed={isBlocked} onClick={() => setNa({ ...na, blockedPeriods: isBlocked ? na.blockedPeriods.filter(id => id !== p.id) : [...na.blockedPeriods, p.id] })}
+                          style={{ padding: "6px 12px", borderRadius: 20, fontSize: 12, cursor: "pointer", border: `1px solid ${isBlocked ? COLORS.danger : COLORS.lightGray}`, background: isBlocked ? COLORS.danger : COLORS.white, color: isBlocked ? COLORS.white : COLORS.text, fontFamily: "inherit" }}>
                           {p.label} {isBlocked && "🚫"}
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
@@ -96,7 +96,7 @@ export function ConstraintsStep({ config: c, setConfig, onNext, onBack }: StepPr
           {teachers.filter((t: any) => t.travelTime).map((t: any) => (
             <div key={t.id} style={{ display: "flex", justifyContent: "space-between", padding: 8, background: "#E0F2FE", borderRadius: 6, marginBottom: 8, fontSize: 13 }}>
               <div><strong>{t.name}</strong> needs {t.travelTime} mins between campuses.</div>
-              <div onClick={() => { const up = teachers.map((x: any) => x.id === t.id ? { ...x, travelTime: undefined } : x); setConfig({ ...c, teachers: up }); }} style={{ cursor: "pointer", color: COLORS.danger }}>✕</div>
+              <button aria-label={`Remove travel time for ${t.name}`} onClick={() => { const up = teachers.map((x: any) => x.id === t.id ? { ...x, travelTime: undefined } : x); setConfig({ ...c, teachers: up }); }} style={{ cursor: "pointer", color: COLORS.danger, background: "none", border: "none", fontSize: "inherit", fontFamily: "inherit" }}>✕</button>
             </div>
           ))}
 
@@ -118,7 +118,7 @@ export function ConstraintsStep({ config: c, setConfig, onNext, onBack }: StepPr
           {cons.map(con => (
             <div key={con.id} style={{ display: "flex", justifyContent: "space-between", padding: 8, background: COLORS.offWhite, borderRadius: 6, marginBottom: 8, fontSize: 13 }}>
               <div><strong>{types.find(t => t.value === con.type)?.label}</strong>{con.courseId && ` — ${c.courses?.find((x: any)=>x.id===con.courseId)?.name}`}{con.period && ` — P${con.period}`}</div>
-              <div onClick={() => setCons(cons.filter(x => x.id !== con.id))} style={{ cursor: "pointer", color: COLORS.danger }}>✕</div>
+              <button aria-label="Remove constraint" onClick={() => setCons(cons.filter(x => x.id !== con.id))} style={{ cursor: "pointer", color: COLORS.danger, background: "none", border: "none", fontSize: "inherit", fontFamily: "inherit" }}>✕</button>
             </div>
           ))}
 

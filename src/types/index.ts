@@ -161,7 +161,26 @@ export interface ScheduleConfig {
   plcFrequency?: string;
   scheduleMode?: string;
   periods?: Period[];
-  
-  // Catch-all for other legacy properties
-  [key: string]: any;
+
+  // Wizard-specific flat properties (normalized by buildScheduleConfig)
+  winEnabled?: boolean;
+  winPeriod?: number | string;
+  winModel?: string;
+  winAfterPeriod?: number | string;
+  winDuration?: number;
+  lunchStyle?: string;
+  lunchPeriod?: number | string;
+  lunchPeriods?: (number | string)[];
+  lunchDuration?: number;
+  numLunchWaves?: number;
+  minClassTime?: number;
+  lunchModel?: string;
+  departments?: { id: string; name: string; teacherCount: number; required: boolean; roomType: string; teacherNames: string[]; teacherFloaters?: boolean[] }[];
+  roomCount?: number;
+  labCount?: number;
+  gymCount?: number;
+  targetLoad?: number;
+  students?: { count: number };
+  lockedSections?: Section[];
+  manualSections?: Section[];
 }

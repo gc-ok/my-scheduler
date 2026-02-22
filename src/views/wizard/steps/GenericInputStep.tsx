@@ -155,7 +155,7 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
               </select>
               <input value={coh.teacherName || ""} onChange={e => { const n = [...cohorts]; n[i].teacherName = e.target.value; setCohorts(n); }} placeholder="Homeroom Teacher" style={{ ...INPUT_STYLE, flex: 1 }} />
               <input type="number" value={coh.studentCount} onChange={e => { const n = [...cohorts]; n[i].studentCount = parseInt(e.target.value); setCohorts(n); }} style={{ ...SMALL_INPUT, width: 60 }} />
-              <div onClick={() => setCohorts(cohorts.filter((_, j) => j !== i))} style={{ cursor: "pointer", color: COLORS.danger, marginLeft: 8 }}>×</div>
+              <button aria-label={`Remove cohort ${coh.name}`} onClick={() => setCohorts(cohorts.filter((_, j) => j !== i))} style={{ cursor: "pointer", color: COLORS.danger, marginLeft: 8, background: "none", border: "none", fontSize: "inherit", fontFamily: "inherit" }}>×</button>
             </div>
           ))}
           <Btn variant="ghost" small onClick={() => setCohorts([...cohorts, { id: `c_${Date.now()}`, name: "New", gradeLevel: "1", studentCount: 25 }])}>+ Add Cohort</Btn>
@@ -202,10 +202,10 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
               <select value={d.roomType || "regular"} onChange={e => upD(i, "roomType", e.target.value)} style={{ ...SELECT_STYLE, width: "auto", padding: "5px 8px", fontSize: 12 }}>
                 <option value="regular">Room</option><option value="lab">Lab</option><option value="gym">Gym</option>
               </select>
-              <div onClick={() => setExpanded(expanded === i ? null : i)} style={{ cursor: "pointer", fontSize: 13, color: COLORS.primary, fontWeight: 600, padding: "4px 8px" }}>
+              <button onClick={() => setExpanded(expanded === i ? null : i)} aria-expanded={expanded === i} style={{ cursor: "pointer", fontSize: 13, color: COLORS.primary, fontWeight: 600, padding: "4px 8px", background: "none", border: "none", fontFamily: "inherit" }}>
                 {expanded === i ? "▲ Hide" : "✏️ Names"}
-              </div>
-              <div onClick={() => setDepts(depts.filter((_, j) => j !== i))} style={{ cursor: "pointer", color: COLORS.danger, fontSize: 18, marginLeft: "auto" }}>×</div>
+              </button>
+              <button aria-label={`Remove department ${d.name}`} onClick={() => setDepts(depts.filter((_, j) => j !== i))} style={{ cursor: "pointer", color: COLORS.danger, fontSize: 18, marginLeft: "auto", background: "none", border: "none", fontFamily: "inherit" }}>×</button>
             </div>
             {expanded === i && (
               <div style={{ padding: 12, background: COLORS.white, border: `1px solid ${COLORS.lightGray}`, borderTop: "none", borderRadius: "0 0 8px 8px" }}>

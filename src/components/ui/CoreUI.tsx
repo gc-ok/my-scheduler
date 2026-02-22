@@ -58,14 +58,24 @@ interface CardProps {
   selected?: boolean;
 }
 
-export const Card: React.FC<CardProps> = ({ children, style, onClick, selected }) => (
-  <div onClick={onClick} style={{
+export const Card: React.FC<CardProps> = ({ children, style, onClick, selected }) => {
+  const cardStyles = {
     background: COLORS.white, borderRadius: 12, padding: 20, color: COLORS.text,
     border: selected ? `2px solid ${COLORS.primary}` : `1px solid ${COLORS.lightGray}`,
     boxShadow: selected ? `0 0 0 3px ${COLORS.accentLight}` : "0 1px 3px rgba(0,0,0,0.06)",
     cursor: onClick ? "pointer" : "default", transition: "all 0.2s", ...style,
-  }}>{children}</div>
-);
+  };
+
+  if (onClick) {
+    return (
+      <button onClick={onClick} aria-pressed={selected} style={{ ...cardStyles, fontFamily: "inherit", fontSize: "inherit", textAlign: "left" as const, width: "100%" }}>
+        {children}
+      </button>
+    );
+  }
+
+  return <div style={cardStyles}>{children}</div>;
+};
 
 interface NumInputProps {
   label?: string;
@@ -112,7 +122,7 @@ interface SelOption {
 interface SelProps {
   label?: string;
   value?: string | number;
-  onChange: (value: any) => void;
+  onChange: (value: string) => void;
   options: SelOption[];
   helperText?: string;
 }
@@ -135,15 +145,20 @@ interface ToggleProps {
 }
 
 export const Toggle: React.FC<ToggleProps> = ({ label, checked, onChange, description }) => (
-  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12, cursor: "pointer" }} onClick={() => onChange(!checked)}>
-    <div style={{ width: 40, height: 22, borderRadius: 11, flexShrink: 0, marginTop: 1, background: checked ? COLORS.primary : COLORS.lightGray, transition: "background 0.2s", position: "relative" }}>
+  <button
+    role="switch"
+    aria-checked={checked}
+    onClick={() => onChange(!checked)}
+    style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12, cursor: "pointer", background: "none", border: "none", padding: 0, textAlign: "left", fontFamily: "inherit", width: "100%" }}
+  >
+    <div aria-hidden="true" style={{ width: 40, height: 22, borderRadius: 11, flexShrink: 0, marginTop: 1, background: checked ? COLORS.primary : COLORS.lightGray, transition: "background 0.2s", position: "relative" }}>
       <div style={{ width: 18, height: 18, borderRadius: 9, background: COLORS.white, position: "absolute", top: 2, left: checked ? 20 : 2, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
     </div>
     <div>
       <div style={{ fontWeight: 600, fontSize: 14, color: COLORS.text }}>{label}</div>
       {description && <div style={{ fontSize: 12, color: COLORS.textLight, marginTop: 2 }}>{description}</div>}
     </div>
-  </div>
+  </button>
 );
 
 interface Tab {
@@ -158,13 +173,14 @@ interface TabsProps {
 }
 
 export const Tabs: React.FC<TabsProps> = ({ tabs, active, onChange }) => (
-  <div style={{ display: "flex", gap: 2, borderBottom: `2px solid ${COLORS.lightGray}`, marginBottom: 18, overflowX: "auto" }}>
+  <div role="tablist" style={{ display: "flex", gap: 2, borderBottom: `2px solid ${COLORS.lightGray}`, marginBottom: 18, overflowX: "auto" }}>
     {tabs.map(t => (
-      <div key={t.id} onClick={() => onChange(t.id)} style={{
+      <button key={t.id} role="tab" aria-selected={active === t.id} onClick={() => onChange(t.id)} style={{
         padding: "10px 18px", cursor: "pointer", fontSize: 14, whiteSpace: "nowrap",
         fontWeight: active === t.id ? 700 : 500, color: active === t.id ? COLORS.primary : COLORS.textLight,
         borderBottom: active === t.id ? `3px solid ${COLORS.primary}` : "3px solid transparent", marginBottom: -2,
-      }}>{t.label}</div>
+        background: "none", border: "none", fontFamily: "inherit",
+      }}>{t.label}</button>
     ))}
   </div>
 );

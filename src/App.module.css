@@ -1,0 +1,127 @@
+.root {
+  min-height: 100vh;
+  background: var(--color-off-white);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color-scheme: light;
+  color: var(--color-text);
+}
+
+/* Loading overlay */
+.loadingRoot {
+  composes: root;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.loadingTitle {
+  margin-top: 20px;
+  color: var(--color-primary);
+}
+
+.progressBar {
+  width: 300px;
+  height: 6px;
+  background: var(--color-light-gray);
+  border-radius: 3px;
+  margin-top: 15px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--color-primary);
+  transition: width 0.3s ease;
+}
+
+.progressText {
+  color: var(--color-text-light);
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+/* Schedule header bar */
+.scheduleHeader {
+  background: var(--color-white);
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--color-light-gray);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.scheduleHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.scheduleHeaderInfo {
+  font-size: 13px;
+  color: var(--color-text-light);
+}
+
+.scheduleHeaderStats {
+  font-size: 12px;
+  color: var(--color-text-light);
+}
+
+/* Error modal */
+.errorOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.errorModal {
+  background: var(--color-white);
+  padding: 30px;
+  border-radius: 12px;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+
+.errorTitle {
+  margin: 0 0 15px 0;
+  color: var(--color-danger);
+}
+
+.errorList {
+  padding-left: 20px;
+  margin-bottom: 20px;
+  color: var(--color-text);
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.errorList li {
+  margin-bottom: 6px;
+}
+
+.errorDismiss {
+  padding: 10px 20px;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .scheduleHeader {
+    padding: 8px 12px;
+  }
+}

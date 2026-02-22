@@ -1,7 +1,7 @@
 // src/utils/scheduleConfig.ts
 import { ScheduleConfig } from '../types';
 
-export function buildScheduleConfig(config: any): ScheduleConfig {
+export function buildScheduleConfig(config: Partial<ScheduleConfig>): ScheduleConfig {
   const pc = config.periodsCount || 7;
   const periodsConfig = (Array.isArray(config.periods) && config.periods.length > 0) ? config.periods : []; 
 
@@ -12,7 +12,7 @@ export function buildScheduleConfig(config: any): ScheduleConfig {
     periodLength: config.periodLength || 50,
     passingTime: config.passingTime || 5,
     lunchConfig: {
-      style: config.lunchConfig?.style || config.lunchStyle || "unit",
+      style: (config.lunchConfig?.style || config.lunchStyle || "unit") as "unit" | "split" | "multi_period",
       lunchPeriod: config.lunchConfig?.lunchPeriod ?? config.lunchPeriod ?? Math.ceil(pc / 2),
       lunchPeriods: config.lunchConfig?.lunchPeriods || config.lunchPeriods || [],
       lunchDuration: config.lunchConfig?.lunchDuration || config.lunchDuration || 30,

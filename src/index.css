@@ -1,11 +1,32 @@
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  /* Theme colors (mirrors COLORS in theme.ts) */
+  --color-primary: #1B4965;
+  --color-primary-light: #2D6A8F;
+  --color-primary-dark: #0F2D3F;
+  --color-secondary: #5FA8D3;
+  --color-accent: #62B6CB;
+  --color-accent-light: #BEE9E8;
+  --color-success: #4CAF50;
+  --color-warning: #FF9800;
+  --color-danger: #E53935;
+  --color-danger-light: #FFCDD2;
+  --color-white: #FFFFFF;
+  --color-off-white: #F5F7FA;
+  --color-light-gray: #E8ECF1;
+  --color-mid-gray: #94A3B8;
+  --color-dark-gray: #475569;
+  --color-text: #1E293B;
+  --color-text-light: #64748B;
+  --color-gold: #F59E0B;
+  --color-purple: #7C3AED;
+  --color-purple-light: #EDE9FE;
+
+  font-family: 'Segoe UI', system-ui, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  color-scheme: light;
+  color: var(--color-text);
+  background-color: var(--color-off-white);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -13,56 +34,33 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
+* {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
   min-width: 320px;
   min-height: 100vh;
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
+/* Reset default button styles so our CSS modules have a clean slate */
 button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
   font-family: inherit;
-  background-color: #1a1a1a;
   cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+a {
+  font-weight: 500;
+  color: var(--color-primary);
+  text-decoration: inherit;
+}
+
+a:hover {
+  color: var(--color-primary-light);
 }

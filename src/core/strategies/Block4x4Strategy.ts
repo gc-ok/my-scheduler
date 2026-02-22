@@ -1,9 +1,17 @@
 // src/core/strategies/Block4x4Strategy.ts
-import { BaseStrategy } from './ScheduleStrategies';
+import { BaseStrategy, ScheduleConflict } from './ScheduleStrategies';
 import { Section, Period, Room } from '../../types';
 
 export class Block4x4Strategy extends BaseStrategy {
-  execute(sections: Section[], periodList: Period[], rooms: Room[]): any[] {
+  generateTimeSlots(periodList: Period[]): string[] {
+    const timeSlots: string[] = [];
+    periodList.forEach(p => {
+      timeSlots.push(`S1-ALL-${p.id}`, `S2-ALL-${p.id}`);
+    });
+    return timeSlots;
+  }
+
+  execute(sections: Section[], periodList: Period[], rooms: Room[]): ScheduleConflict[] {
     const timeSlots: string[] = [];
     
     // 1. Generate Semester 1 and Semester 2 Universal TimeSlots
@@ -26,9 +34,9 @@ export class Block4x4Strategy extends BaseStrategy {
     placementOrder.forEach(sec => {
       let bestSlot: string | null = null;
       let minCost = Infinity;
-      let periodEvaluations: any[] = []; 
+      let periodEvaluations: { period: string; cost: number; reasons: string[] }[] = [];
       
-      const shuffledSlots = [...timeSlots].sort(() => Math.random() - 0.5);
+      const shuffledSlots = this.shuffle(timeSlots);
 
       for (const slotId of shuffledSlots) {
         let cost = 0;

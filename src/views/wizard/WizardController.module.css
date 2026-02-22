@@ -1,0 +1,116 @@
+.header {
+  background: var(--color-white);
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--color-light-gray);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.navBar {
+  background: var(--color-white);
+  padding: 10px 24px;
+  border-bottom: 1px solid var(--color-light-gray);
+  overflow-x: auto;
+}
+
+.navItems {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.navItemContainer {
+  display: flex;
+  align-items: center;
+}
+
+.navPill {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  white-space: nowrap;
+  border: none;
+  font-family: inherit;
+  transition: background 0.2s, color 0.2s;
+}
+
+.navLine {
+  width: 12px;
+  height: 2px;
+  margin: 0 2px;
+}
+
+.contentContainer {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 30px 24px;
+}
+
+.landingWrapper {
+  text-align: center;
+  padding-top: 40px;
+}
+
+.landingLogo {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.landingTitle {
+  font-size: 28px;
+  color: var(--color-primary);
+  margin-bottom: 8px;
+}
+
+.landingDesc {
+  font-size: 15px;
+  color: var(--color-text-light);
+  max-width: 480px;
+  margin: 0 auto 30px;
+  line-height: 1.6;
+}
+
+.landingBtn {
+  padding: 14px 32px;
+  font-size: 16px;
+}
+
+.landingGrid {
+  margin-top: 40px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  text-align: left;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .contentContainer {
+    padding: 20px 16px;
+  }
+
+  .landingGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .navBar {
+    padding: 8px 12px;
+  }
+
+  .navPill {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .landingTitle {
+    font-size: 22px;
+  }
+
+  .landingDesc {
+    font-size: 14px;
+  }
+}

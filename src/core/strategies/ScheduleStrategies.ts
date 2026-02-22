@@ -11,19 +11,51 @@ const getTermFromSlot = (slot: string) => {
   return "FY";
 };
 
+interface PeriodEvaluation {
+  period: string;
+  cost: number;
+  reasons: string[];
+}
+
+export interface ScheduleLogger {
+  info(msg: string, data?: Record<string, unknown> | null): void;
+  warn(msg: string, data?: Record<string, unknown> | null): void;
+  error(msg: string, data?: Record<string, unknown> | null): void;
+  logPlacement(section: Section, period: string | number, finalCost: number, evaluations: PeriodEvaluation[]): void;
+  logFailure(section: Section, evaluations: PeriodEvaluation[]): void;
+}
+
+export interface ScheduleConflict {
+  type: string;
+  message: string;
+  sectionId?: string;
+}
+
 export abstract class BaseStrategy {
   tracker: ResourceTracker;
   config: ScheduleConfig;
-  logger: any; // Keeping logger flexible for now
-  conflicts: any[];
+  logger: ScheduleLogger;
+  conflicts: ScheduleConflict[];
   secsInPeriod: Record<string, number>;
+  rng: () => number;
 
-  constructor(tracker: ResourceTracker, config: ScheduleConfig, logger: any) {
+  constructor(tracker: ResourceTracker, config: ScheduleConfig, logger: ScheduleLogger, rng?: () => number) {
     this.tracker = tracker;
     this.config = config;
     this.logger = logger;
     this.conflicts = [];
     this.secsInPeriod = {};
+    this.rng = rng || Math.random;
+  }
+
+  /** Fisher-Yates shuffle using the seeded RNG */
+  protected shuffle<T>(arr: T[]): T[] {
+    const result = [...arr];
+    for (let i = result.length - 1; i > 0; i--) {
+      const j = Math.floor(this.rng() * (i + 1));
+      [result[i], result[j]] = [result[j], result[i]];
+    }
+    return result;
   }
   
   // Abstract methods to be implemented by subclasses
@@ -76,7 +108,7 @@ export abstract class BaseStrategy {
     return true;
   }
 
-  execute(sections: Section[], periodList: Period[], rooms: Room[]): any[] {
+  execute(sections: Section[], periodList: Period[], rooms: Room[]): ScheduleConflict[] {
     const schedulablePeriods = periodList.filter(p => p.id !== "WIN" && p.type !== "win" && p.type !== "recess");
     const timeSlots = this.generateTimeSlots(schedulablePeriods);
     timeSlots.forEach(slot => this.secsInPeriod[slot] = 0);
@@ -93,9 +125,9 @@ export abstract class BaseStrategy {
     placementOrder.forEach(sec => {
       let bestSlot: string | null = null;
       let minCost = Infinity;
-      let periodEvaluations: any[] = []; 
+      let periodEvaluations: PeriodEvaluation[] = [];
       
-      const shuffledSlots = [...timeSlots].sort(() => Math.random() - 0.5);
+      const shuffledSlots = this.shuffle(timeSlots);
 
       for (const slotId of shuffledSlots) {
         let cost = 0;
@@ -172,7 +204,7 @@ export abstract class BaseStrategy {
     return this.conflicts;
   }
 
-  placeSection(sec: Section, slot: string, rooms: Room[], cost: number, evals: any[]) {
+  placeSection(sec: Section, slot: string, rooms: Room[], cost: number, evals: PeriodEvaluation[]) {
     this.secsInPeriod[slot]++;
     const term = getTermFromSlot(slot);
     
@@ -190,8 +222,7 @@ export abstract class BaseStrategy {
   }
 
   attemptBacktrack(sec: Section, candidateSlots: string[], sections: Section[], rooms: Room[]): boolean {
-    // Shuffle slots to avoid deterministic loops
-    const slots = [...candidateSlots].sort(() => Math.random() - 0.5);
+    const slots = this.shuffle(candidateSlots);
 
     for (const slot of slots) {
       // 1. Check if the blocker is a Teacher Conflict (the most common bottleneck)
