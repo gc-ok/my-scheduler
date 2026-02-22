@@ -7,6 +7,7 @@ import { Logo } from "./components/ui/CoreUI";
 import { ScheduleConfig, Section } from "./types";
 import { buildScheduleConfig } from "./utils/scheduleConfig";
 import { saveToDB, loadFromDB } from "./utils/db";
+import { validateConfig } from "./utils/validator";
 
 export default function App() {
   const [step, setStep] = useState<number>(0);
@@ -17,6 +18,9 @@ export default function App() {
   // NEW: State to track when the worker is processing
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [genProgress, setGenProgress] = useState({ msg: "Starting...", pct: 0 });
+  
+  // NEW: Error State for graceful UI feedback
+  const [errorState, setErrorState] = useState<{ title: string; messages: string[] } | null>(null);
   
   // NEW: Ref to hold the worker instance
   const workerRef = useRef<Worker | null>(null);
@@ -80,7 +84,7 @@ export default function App() {
         setStep(99);
       } else {
         console.error("Scheduling Engine Error:", error);
-        alert(`Gridlock or Engine Error: ${error}`);
+        setErrorState({ title: "Scheduling Engine Error", messages: [error || "An unknown error occurred."] });
       }
     };
 
@@ -91,6 +95,14 @@ export default function App() {
   }, []);
 
   const gen = () => {
+    // 1. Validate Data before sending to worker
+    setErrorState(null);
+    const validationErrors = validateConfig(config);
+    if (validationErrors.length > 0) {
+      setErrorState({ title: "Configuration Error", messages: validationErrors });
+      return;
+    }
+
     setIsGenerating(true);
     const finalConfig = buildScheduleConfig(config);
     setGenProgress({ msg: "Initializing...", pct: 0 });
@@ -164,6 +176,21 @@ export default function App() {
 
   const rootStyle = { minHeight: "100vh", background: COLORS.offWhite, fontFamily: "'Segoe UI', system-ui, sans-serif", colorScheme: "light", color: COLORS.text };
 
+  // NEW: Reusable Error Modal Component
+  const ErrorModal = () => (
+    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10000 }}>
+      <div style={{ background: COLORS.white, padding: 30, borderRadius: 12, maxWidth: 500, width: "90%", boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>
+        <h3 style={{ margin: "0 0 15px 0", color: COLORS.danger }}>⚠️ {errorState?.title}</h3>
+        <ul style={{ paddingLeft: 20, marginBottom: 20, color: COLORS.text, maxHeight: 300, overflowY: "auto" }}>
+          {errorState?.messages.map((m, i) => <li key={i} style={{ marginBottom: 6 }}>{m}</li>)}
+        </ul>
+        <button onClick={() => setErrorState(null)} style={{ padding: "10px 20px", background: COLORS.primary, color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, width: "100%" }}>
+          Dismiss & Fix
+        </button>
+      </div>
+    </div>
+  );
+
   // NEW: Display a loading overlay while the background worker is running
   if (isGenerating) {
     return (
@@ -181,6 +208,7 @@ export default function App() {
   if (step === 99 && schedule) {
     return (
       <div style={rootStyle}>
+        {errorState && <ErrorModal />}
         <div style={{ background: COLORS.white, padding: "10px 20px", borderBottom: `1px solid ${COLORS.lightGray}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <Logo size={30} />
@@ -199,6 +227,7 @@ export default function App() {
 
   return (
     <div style={rootStyle}>
+      {errorState && <ErrorModal />}
       <WizardController step={step} setStep={setStep} config={config} setConfig={setConfig} onComplete={gen} />
     </div>
   );

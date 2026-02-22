@@ -45,7 +45,9 @@ export abstract class BaseStrategy {
     timeSlots.forEach(slot => this.secsInPeriod[slot] = 0);
 
     const placementOrder = [...sections].filter(s => !s.locked && !s.hasConflict).sort((a,b) => {
-      // 1. Singletons First (Highest Priority)
+      // 0. Double Blocks (Hardest to schedule)
+      if (!!a.isDoubleBlock !== !!b.isDoubleBlock) return a.isDoubleBlock ? -1 : 1;
+      // 1. Singletons (High Priority)
       if (!!a.isSingleton !== !!b.isSingleton) return a.isSingleton ? -1 : 1;
       // 2. Core vs Elective
       return a.isCore === b.isCore ? 0 : a.isCore ? -1 : 1;
@@ -91,6 +93,21 @@ export abstract class BaseStrategy {
 
         // 4. GENERAL CONGESTION
         cost += (this.secsInPeriod[slotId] || 0) * 10;
+
+        // 5. CONFLICT MATRIX (Course Relationships)
+        if (this.config.courseRelationships && this.config.courseRelationships.length > 0) {
+          const placedInSlot = sections.filter(s => s.period === slotId);
+          this.config.courseRelationships.forEach(rel => {
+            if (rel.courseIds.includes(sec.courseId)) {
+              // Check if any other course in this relationship is already in this slot
+              const conflict = placedInSlot.find(s => rel.courseIds.includes(s.courseId) && s.courseId !== sec.courseId);
+              if (conflict && rel.type === "avoid_overlap") {
+                cost += (rel.penalty || 1000);
+                softFails.push(`Conflict Matrix: ${rel.type}`);
+              }
+            }
+          });
+        }
 
         // 5. STRATEGY SPECIFIC COSTS
         const custom = this.calculateCustomCost(sec, slotId, sections);
@@ -140,7 +157,12 @@ export abstract class BaseStrategy {
 
     for (const slot of slots) {
       // 1. Check if the blocker is a Teacher Conflict (the most common bottleneck)
-      const blockerId = this.tracker.getBlocker(sec.teacher!, slot);
+      let blockerId = this.tracker.getBlocker(sec.teacher!, slot);
+
+      // NEW: Check Co-Teacher blocker if main teacher is free
+      if (!blockerId && sec.coTeacher) {
+        blockerId = this.tracker.getBlocker(sec.coTeacher, slot);
+      }
       
       // We can only bump if it's a Section, not a hard block like LUNCH or PLC
       if (!blockerId || ["LUNCH", "PLC", "PLAN", "BLOCKED"].includes(blockerId)) continue;

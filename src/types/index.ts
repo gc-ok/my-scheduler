@@ -26,6 +26,13 @@ export interface Course {
   gradeLevel?: string;
 }
 
+export interface CourseRelationship {
+  id?: string;
+  type: "avoid_overlap" | "require_overlap";
+  courseIds: string[];
+  penalty?: number;
+}
+
 export interface Constraint {
   id?: string;
   type: "lock_period" | "teacher_unavailable" | string;
@@ -77,6 +84,7 @@ export interface Section {
   locked?: boolean;
   isManual?: boolean;
   isSingleton?: boolean;
+  isDoubleBlock?: boolean;
 }
 
 export interface Period {
@@ -132,6 +140,7 @@ export interface ScheduleConfig {
   constraints?: Constraint[]; 
   plcGroups?: PlcGroup[];
   teacherAvailability?: TeacherAvailability[];
+  courseRelationships?: CourseRelationship[];
   
   studentCount?: number;
   maxClassSize?: number;
