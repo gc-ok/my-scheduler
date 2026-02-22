@@ -115,6 +115,20 @@ export interface RecessConfig {
   afterPeriod: number | string;
 }
 
+export interface ScheduleResult {
+  sections: Section[];
+  periods: Period[];
+  stats?: {
+    scheduledCount: number;
+    totalSections: number;
+    conflictCount: number;
+    roomUtilization?: number;
+    teacherUtilization?: number;
+  };
+  logs?: unknown[];
+  placementHistory?: unknown[];
+}
+
 // A generic Config interface based on your engine.js
 export interface ScheduleConfig {
   inputMode?: string;

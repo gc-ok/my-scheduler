@@ -2,22 +2,29 @@ import { useState, useEffect, useRef } from "react";
 import ScheduleGridView from "./components/grid/ScheduleGridView";
 import WizardController from "./views/wizard/WizardController";
 import { Logo } from "./components/ui/CoreUI";
-import { ScheduleConfig, Section } from "./types";
+import { ScheduleConfig, ScheduleResult, Section } from "./types";
 import { buildScheduleConfig } from "./utils/scheduleConfig";
-import { saveToDB, loadFromDB } from "./utils/db";
+import { saveToDB, loadFromDB, clearDB } from "./utils/db";
 import { validateConfig } from "./utils/validator";
 import css from "./App.module.css";
 
 export default function App() {
   const [step, setStep] = useState<number>(0);
   const [config, setConfig] = useState<Partial<ScheduleConfig>>({});
-  const [schedule, setSchedule] = useState<any>(null);
+  const [schedule, setSchedule] = useState<ScheduleResult | null>(null);
   const [isDataLoaded, setIsDataLoaded] = useState<boolean>(false);
 
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [genProgress, setGenProgress] = useState({ msg: "Starting...", pct: 0 });
   const [errorState, setErrorState] = useState<{ title: string; messages: string[] } | null>(null);
   const workerRef = useRef<Worker | null>(null);
+
+  // Welcome-back restore prompt
+  const [pendingRestore, setPendingRestore] = useState<{
+    config: Partial<ScheduleConfig>;
+    step: number;
+    schedule: ScheduleResult | null;
+  } | null>(null);
 
   // --- PERSISTENCE LOGIC ---
   useEffect(() => {
@@ -27,9 +34,14 @@ export default function App() {
         const savedStep = await loadFromDB("step");
         const savedSchedule = await loadFromDB("schedule");
 
-        if (savedConfig) setConfig(savedConfig);
-        if (savedStep !== undefined && savedConfig) setStep(savedStep);
-        if (savedSchedule) setSchedule(savedSchedule);
+        if (savedConfig && savedStep !== undefined && savedStep > 0) {
+          // Don't auto-restore — ask the user first
+          setPendingRestore({
+            config: savedConfig,
+            step: savedStep,
+            schedule: savedSchedule || null,
+          });
+        }
       } catch (err) {
         console.warn("Could not restore session:", err);
       } finally {
@@ -38,6 +50,23 @@ export default function App() {
     };
     restoreSession();
   }, []);
+
+  const handleContinueSession = () => {
+    if (pendingRestore) {
+      setConfig(pendingRestore.config);
+      setStep(pendingRestore.step);
+      if (pendingRestore.schedule) setSchedule(pendingRestore.schedule);
+    }
+    setPendingRestore(null);
+  };
+
+  const handleStartOver = async () => {
+    setPendingRestore(null);
+    setConfig({});
+    setStep(0);
+    setSchedule(null);
+    await clearDB();
+  };
 
   useEffect(() => {
     if (!isDataLoaded) return;
@@ -156,6 +185,29 @@ export default function App() {
           <div className={css.progressFill} style={{ width: `${genProgress.pct}%` }} />
         </div>
         <p className={css.progressText}>{genProgress.msg} ({genProgress.pct}%)</p>
+      </div>
+    );
+  }
+
+  if (pendingRestore) {
+    const stepLabel = pendingRestore.step === 99 ? "a completed schedule" : `step ${pendingRestore.step} of 10`;
+    return (
+      <div className={css.loadingRoot}>
+        <Logo size={60} />
+        <div className={css.welcomeBack}>
+          <h2 className={css.welcomeTitle}>Welcome Back!</h2>
+          <p className={css.welcomeDesc}>
+            You have a saved session at {stepLabel}. Would you like to pick up where you left off?
+          </p>
+          <div className={css.welcomeActions}>
+            <button className={css.welcomeBtnPrimary} onClick={handleContinueSession}>
+              Continue Session
+            </button>
+            <button className={css.welcomeBtnSecondary} onClick={handleStartOver}>
+              Start Over
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
