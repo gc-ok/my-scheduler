@@ -52,8 +52,16 @@ export function runStudentScheduler(
       conflicts: [],
     };
 
-    // Sort requests by priority (lower number is higher priority)
-    const sortedRequests = [...student.requests].sort((a, b) => a.priority - b.priority);
+    // Sort requests by priority (lower number is higher priority).
+    // Tiebreaker: MRV (Minimum Remaining Values) — within the same priority band,
+    // schedule the most constrained courses first (fewest available sections).
+    // This prevents flexible electives from claiming the only period a singleton course occupies.
+    const sortedRequests = [...student.requests].sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      const aSections = courseMap.get(a.courseId)?.length ?? 0;
+      const bSections = courseMap.get(b.courseId)?.length ?? 0;
+      return aSections - bSections;
+    });
 
     for (const request of sortedRequests) {
       const potentialSections = courseMap.get(request.courseId) || [];

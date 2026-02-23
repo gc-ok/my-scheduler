@@ -4,7 +4,7 @@ import ScheduleGridView from "./components/grid/ScheduleGridView";
 import WizardController from "./views/wizard/WizardController";
 import { Logo } from "./components/ui/CoreUI";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { saveToDB } from "./utils/db";
+import { saveToDB, saveToDBSync } from "./utils/db";
 import { useScheduleWorker } from "./hooks/useScheduleWorker";
 import { useSessionRestore } from "./hooks/useSessionRestore";
 import { useScheduleExport } from "./hooks/useScheduleExport";
@@ -30,7 +30,18 @@ export default function App() {
   const { generate, regenerate, clearError } = useScheduleWorker();
   const { exportCSV } = useScheduleExport(schedule);
 
-  // Debounced persistence effect now reads from the store
+  // Immediate save on step advancement — each step transition represents significant user
+  // progress (completing a wizard screen) so we don't debounce it.
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    const { step, config } = useScheduleStore.getState();
+    if (Object.keys(config).length > 0) {
+      saveToDB("config", config);
+      saveToDB("step", step);
+    }
+  }, [step, isDataLoaded]);
+
+  // Debounced save for in-progress config edits (typing in fields, adjusting sliders, etc.)
   useEffect(() => {
     if (!isDataLoaded) return;
     const timer = setTimeout(() => {
@@ -41,7 +52,22 @@ export default function App() {
       }
     }, 1000);
     return () => clearTimeout(timer);
-  }, [config, step, isDataLoaded]);
+  }, [config, isDataLoaded]);
+
+  // Flush pending saves synchronously before the browser destroys the page context.
+  // Uses saveToDBSync (cached IDB connection) so the transaction starts in the same
+  // call stack — async promise chains are not reliable inside beforeunload.
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      const { step, config } = useScheduleStore.getState();
+      if (Object.keys(config).length > 0) {
+        saveToDBSync("config", config);
+        saveToDBSync("step", step);
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
 
   const regen = useCallback((activeVariantId = 'default') => {
     const currentSchedule = useScheduleStore.getState().schedule;
