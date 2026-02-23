@@ -92,11 +92,13 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
 
   // ELEMENTARY COHORT STATE
   // parallelGroupId: cohorts sharing the same group ID are scheduled for the same subject at the same period
+  // Default model derived from school-level elementaryModel answer so pre-fills correctly.
+  const defaultCohortModel = c.elementaryModel === 'platooning' ? 'platooning' : 'self_contained';
   const [cohorts, setCohorts] = useState<any[]>(
     c.cohorts && c.cohorts.length > 0 ? c.cohorts : [
-      { id: "c1", name: "1A", gradeLevel: "1", teacherName: "", studentCount: 25, parallelGroupId: "" },
-      { id: "c2", name: "1B", gradeLevel: "1", teacherName: "", studentCount: 25, parallelGroupId: "" },
-      { id: "c3", name: "2A", gradeLevel: "2", teacherName: "", studentCount: 26, parallelGroupId: "" },
+      { id: "c1", name: "1A", gradeLevel: "1", teacherName: "", studentCount: 25, parallelGroupId: "", scheduleModel: defaultCohortModel, partnerTeacherName: "" },
+      { id: "c2", name: "1B", gradeLevel: "1", teacherName: "", studentCount: 25, parallelGroupId: "", scheduleModel: defaultCohortModel, partnerTeacherName: "" },
+      { id: "c3", name: "2A", gradeLevel: "2", teacherName: "", studentCount: 26, parallelGroupId: "", scheduleModel: defaultCohortModel, partnerTeacherName: "" },
     ]
   );
 
@@ -217,18 +219,51 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
       // ELEMENTARY LOGIC — build teachers from cohorts + specials courses
       const teachers: any[] = [];
 
-      // Homeroom teachers (one per cohort) — assign teacherId back to cohort so engine can link them
-      const cohortsWithIds = cohorts.map((coh, i) => ({
-        ...coh,
-        teacherId: coh.teacherId || `t_hr_${i}`,
-        parallelGroupId: coh.parallelGroupId || undefined,
-      }));
+      // Assign teacherIds and partnerTeacherIds; deduplicate partner teachers by exact name
+      const partnerNameToId = new Map<string, string>();
 
+      const cohortsWithIds = cohorts.map((coh, i) => {
+        const teacherId = coh.teacherId || `t_hr_${i}`;
+        let partnerTeacherId: string | undefined;
+
+        if (coh.scheduleModel === 'platooning' && coh.partnerTeacherName?.trim()) {
+          const pName = coh.partnerTeacherName.trim();
+          if (!partnerNameToId.has(pName)) {
+            partnerNameToId.set(pName, `t_partner_${partnerNameToId.size}`);
+          }
+          partnerTeacherId = partnerNameToId.get(pName);
+        }
+
+        return {
+          ...coh,
+          teacherId,
+          partnerTeacherId,
+          parallelGroupId: coh.parallelGroupId || undefined,
+        };
+      });
+
+      // Build primary homeroom / STEM teachers
       cohortsWithIds.forEach(coh => {
+        // Avoid duplicate teachers when multiple cohorts share the same named teacher
+        if (!teachers.find(t => t.id === coh.teacherId)) {
+          const isPlatooning = coh.scheduleModel === 'platooning';
+          teachers.push({
+            id: coh.teacherId,
+            name: coh.teacherName || (isPlatooning ? `STEM ${coh.name}` : `Homeroom ${coh.name}`),
+            departments: isPlatooning
+              ? ["Math", "Science", "STEM", "Technology"]
+              : ["Homeroom", `Grade ${coh.gradeLevel}`],
+            planPeriods: planP,
+          });
+        }
+      });
+
+      // Build partner (Humanities) teachers for platooning cohorts
+      partnerNameToId.forEach((id, name) => {
         teachers.push({
-          id: coh.teacherId,
-          name: coh.teacherName || `Homeroom ${coh.name}`,
-          departments: ["Homeroom", `Grade ${coh.gradeLevel}`],
+          id,
+          name,
+          departments: ["ELA", "English", "Social Studies", "History", "Humanities"],
           planPeriods: planP,
         });
       });
@@ -433,58 +468,86 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
             <strong>Parallel Group</strong> (optional): cohorts with the same group label (e.g. "PG1") are scheduled for the same subject at the same period with different teachers — ideal for grade-level teacher swaps.
           </p>
           {cohorts.map((coh, i) => (
-            <div key={coh.id} style={{ display: "flex", gap: 8, padding: 10, background: COLORS.offWhite, borderRadius: 8, marginBottom: 8, alignItems: "center", flexWrap: "wrap" }}>
-              <input
-                value={coh.name}
-                onChange={e => { const n = [...cohorts]; n[i] = { ...n[i], name: e.target.value }; setCohorts(n); }}
-                placeholder="Name (1A)"
-                style={{ ...INPUT_STYLE, width: 72 }}
-              />
-              <select
-                value={coh.gradeLevel}
-                onChange={e => { const n = [...cohorts]; n[i] = { ...n[i], gradeLevel: e.target.value }; setCohorts(n); }}
-                style={{ ...SELECT_STYLE, width: 82 }}
-              >
-                {["K","1","2","3","4","5","6","7","8"].map(g => <option key={g} value={g}>Gr {g}</option>)}
-              </select>
-              <input
-                value={coh.teacherName || ""}
-                onChange={e => { const n = [...cohorts]; n[i] = { ...n[i], teacherName: e.target.value }; setCohorts(n); }}
-                placeholder="Homeroom Teacher"
-                style={{ ...INPUT_STYLE, flex: 1, minWidth: 130 }}
-              />
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <div key={coh.id} style={{ background: COLORS.offWhite, borderRadius: 8, marginBottom: 8, overflow: "hidden" }}>
+              {/* Primary row */}
+              <div style={{ display: "flex", gap: 8, padding: 10, alignItems: "center", flexWrap: "wrap" }}>
                 <input
-                  type="number" min={5} max={50}
-                  value={coh.studentCount}
-                  onChange={e => { const n = [...cohorts]; n[i] = { ...n[i], studentCount: parseInt(e.target.value) || 0 }; setCohorts(n); }}
-                  style={{ ...SMALL_INPUT, width: 52 }}
+                  value={coh.name}
+                  onChange={e => { const n = [...cohorts]; n[i] = { ...n[i], name: e.target.value }; setCohorts(n); }}
+                  placeholder="Name (1A)"
+                  style={{ ...INPUT_STYLE, width: 72 }}
                 />
-                <span style={{ fontSize: 11, color: COLORS.textLight }}>sts</span>
+                <select
+                  value={coh.gradeLevel}
+                  onChange={e => { const n = [...cohorts]; n[i] = { ...n[i], gradeLevel: e.target.value }; setCohorts(n); }}
+                  style={{ ...SELECT_STYLE, width: 82 }}
+                >
+                  {["K","1","2","3","4","5","6","7","8"].map(g => <option key={g} value={g}>Gr {g}</option>)}
+                </select>
+                {/* Model selector */}
+                <select
+                  value={coh.scheduleModel || "self_contained"}
+                  onChange={e => { const n = [...cohorts]; n[i] = { ...n[i], scheduleModel: e.target.value }; setCohorts(n); }}
+                  style={{ ...SELECT_STYLE, width: 148, fontSize: 12 }}
+                  title="Scheduling model for this cohort"
+                >
+                  <option value="self_contained">Self-Contained</option>
+                  <option value="platooning">Platooning</option>
+                  <option value="departmentalized">Departmentalized</option>
+                </select>
+                <input
+                  value={coh.teacherName || ""}
+                  onChange={e => { const n = [...cohorts]; n[i] = { ...n[i], teacherName: e.target.value }; setCohorts(n); }}
+                  placeholder={coh.scheduleModel === "platooning" ? "STEM Teacher" : "Homeroom Teacher"}
+                  style={{ ...INPUT_STYLE, flex: 1, minWidth: 120 }}
+                />
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <input
+                    type="number" min={5} max={50}
+                    value={coh.studentCount}
+                    onChange={e => { const n = [...cohorts]; n[i] = { ...n[i], studentCount: parseInt(e.target.value) || 0 }; setCohorts(n); }}
+                    style={{ ...SMALL_INPUT, width: 52 }}
+                  />
+                  <span style={{ fontSize: 11, color: COLORS.textLight }}>sts</span>
+                </div>
+                {/* Parallel Block Group */}
+                <input
+                  value={coh.parallelGroupId || ""}
+                  onChange={e => { const n = [...cohorts]; n[i] = { ...n[i], parallelGroupId: e.target.value || undefined }; setCohorts(n); }}
+                  placeholder="Group"
+                  title="Parallel group ID — cohorts sharing this label are scheduled for the same subject at the same period"
+                  style={{ ...INPUT_STYLE, width: 68, fontSize: 12 }}
+                />
+                <button
+                  aria-label={`Remove cohort ${coh.name}`}
+                  onClick={() => setCohorts(cohorts.filter((_, j) => j !== i))}
+                  style={{ cursor: "pointer", color: COLORS.danger, background: "none", border: "none", fontSize: 18, lineHeight: 1, fontFamily: "inherit" }}
+                >×</button>
               </div>
-              {/* Parallel Block Group */}
-              <input
-                value={coh.parallelGroupId || ""}
-                onChange={e => { const n = [...cohorts]; n[i] = { ...n[i], parallelGroupId: e.target.value || undefined }; setCohorts(n); }}
-                placeholder="Group"
-                title="Parallel group ID — cohorts sharing this label are scheduled for the same subject at the same period"
-                style={{ ...INPUT_STYLE, width: 68, fontSize: 12 }}
-              />
-              <button
-                aria-label={`Remove cohort ${coh.name}`}
-                onClick={() => setCohorts(cohorts.filter((_, j) => j !== i))}
-                style={{ cursor: "pointer", color: COLORS.danger, background: "none", border: "none", fontSize: 18, lineHeight: 1, fontFamily: "inherit" }}
-              >×</button>
+              {/* Platooning: partner teacher row */}
+              {coh.scheduleModel === "platooning" && (
+                <div style={{ display: "flex", gap: 8, padding: "6px 10px 10px", alignItems: "center", borderTop: `1px solid ${COLORS.lightGray}` }}>
+                  <span style={{ fontSize: 11, color: COLORS.textLight, whiteSpace: "nowrap", minWidth: 72 }}>Partner →</span>
+                  <input
+                    value={coh.partnerTeacherName || ""}
+                    onChange={e => { const n = [...cohorts]; n[i] = { ...n[i], partnerTeacherName: e.target.value }; setCohorts(n); }}
+                    placeholder="Humanities Teacher (ELA / Social Studies)"
+                    style={{ ...INPUT_STYLE, flex: 1, fontSize: 13 }}
+                  />
+                  <span style={{ fontSize: 11, color: COLORS.textLight, whiteSpace: "nowrap" }}>handles non-STEM subjects</span>
+                </div>
+              )}
             </div>
           ))}
-          <Btn variant="ghost" small onClick={() => setCohorts([...cohorts, { id: `c_${Date.now()}`, name: "", gradeLevel: "1", teacherName: "", studentCount: 25, parallelGroupId: "" }])}>
+          <Btn variant="ghost" small onClick={() => setCohorts([...cohorts, { id: `c_${Date.now()}`, name: "", gradeLevel: "1", teacherName: "", studentCount: 25, parallelGroupId: "", scheduleModel: defaultCohortModel, partnerTeacherName: "" }])}>
             + Add Cohort
           </Btn>
 
           {/* ── CORE SUBJECTS ── */}
           <h3 style={{ fontSize: 15, margin: "24px 0 8px", color: COLORS.text }}>📚 Core Subjects</h3>
           <p style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 10 }}>
-            Taught by the homeroom teacher. One section per cohort is generated automatically.
+            One section per cohort per subject. For <strong>self-contained</strong> cohorts the homeroom teacher covers all core subjects.
+            For <strong>platooning</strong> cohorts, Math/Science go to the STEM teacher and ELA/Social Studies go to the Humanities partner.
           </p>
           {coreCourses.map((ec, _) => {
             const i = elemCourses.indexOf(ec);
@@ -549,6 +612,11 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
             <strong>Engine will generate:</strong>&nbsp;
             {cohorts.length} cohorts × {coreCourses.length} core sections + {cohorts.length} cohorts × {specCourses.length} specials sections
             &nbsp;=&nbsp;<strong>{cohorts.length * (coreCourses.length + specCourses.length)} total sections</strong>
+            {cohorts.some(c => c.scheduleModel === 'platooning') && (
+              <span style={{ marginLeft: 8, color: COLORS.primary }}>
+                · {cohorts.filter(c => c.scheduleModel === 'platooning').length} platooning cohort(s) — STEM/Humanities split
+              </span>
+            )}
           </div>
         </div>
 

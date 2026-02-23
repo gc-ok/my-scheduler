@@ -125,7 +125,12 @@ export function CSVUploadStep({ onNext, onBack }: StepProps) {
   const [file, setFile] = useState<File | null>(null);
   const [previewRows, setPreviewRows] = useState<string[][]>([]);
   const [totalRows, setTotalRows] = useState(0);
+  const [isParsing, setIsParsing] = useState(false);
   const [error, setError] = useState('');
+
+  // Warn when file is large enough that parsing may take a noticeable moment
+  const fileSizeMB = file ? file.size / (1024 * 1024) : 0;
+  const isLargeFile = fileSizeMB > 5;
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -133,21 +138,27 @@ export function CSVUploadStep({ onNext, onBack }: StepProps) {
     setFile(selectedFile);
     setError('');
     setPreviewRows([]);
+    setIsParsing(true);
 
     Papa.parse<string[]>(selectedFile, {
       header: false,
       skipEmptyLines: true,
+      worker: true, // parse off the main thread — prevents UI freeze on large files
       complete: (results) => {
         const rows = results.data as string[][];
         setTotalRows(rows.length);
         setPreviewRows(rows.slice(0, 6));
+        setIsParsing(false);
         updateConfig({
           csvData: rows,
           csvUploadType: uploadType,
           csvRequestFormat: uploadType === 'requests' ? requestFormat : undefined,
         });
       },
-      error: (err) => setError(`Error reading file: ${err.message}`),
+      error: (err) => {
+        setIsParsing(false);
+        setError(`Error reading file: ${err.message}`);
+      },
     });
   };
 
@@ -234,18 +245,33 @@ export function CSVUploadStep({ onNext, onBack }: StepProps) {
       <SectionHeader number={3} label="Choose your CSV file" />
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
         <label style={{
-          display: 'inline-block', padding: '10px 20px', borderRadius: 8, cursor: 'pointer',
-          background: COLORS.primary, color: COLORS.white, fontWeight: 600, fontSize: 14,
+          display: 'inline-block', padding: '10px 20px', borderRadius: 8,
+          cursor: isParsing ? 'default' : 'pointer',
+          background: isParsing ? COLORS.midGray : COLORS.primary,
+          color: COLORS.white, fontWeight: 600, fontSize: 14,
         }}>
-          Choose File
-          <input type="file" accept=".csv" onChange={handleFileChange} style={{ display: 'none' }} />
+          {isParsing ? 'Reading…' : 'Choose File'}
+          <input type="file" accept=".csv" onChange={handleFileChange} disabled={isParsing} style={{ display: 'none' }} />
         </label>
-        {file && (
+        {file && !isParsing && (
           <span style={{ color: COLORS.success, fontSize: 14 }}>
-            ✓ {file.name} &nbsp;·&nbsp; {totalRows} rows detected
+            ✓ {file.name} &nbsp;·&nbsp; {totalRows.toLocaleString()} rows detected
+            {fileSizeMB > 0 && <span style={{ color: COLORS.textLight }}> &nbsp;·&nbsp; {fileSizeMB.toFixed(1)} MB</span>}
+          </span>
+        )}
+        {isParsing && (
+          <span style={{ color: COLORS.textLight, fontSize: 13 }}>
+            Parsing file off-thread…
           </span>
         )}
       </div>
+
+      {isLargeFile && !isParsing && previewRows.length > 0 && (
+        <div style={{ marginTop: 10, background: '#fffbeb', border: '1px solid #f59e0b', borderRadius: 6, padding: '8px 12px', fontSize: 12, color: '#92400e' }}>
+          Large file ({fileSizeMB.toFixed(1)} MB). Column mapping and processing may be slower than usual. Ensure your data starts on the correct row.
+        </div>
+      )}
+
       {error && <div style={{ color: 'red', marginTop: 10, fontSize: 13 }}>{error}</div>}
 
       {previewRows.length > 0 && (
@@ -287,7 +313,7 @@ export function CSVUploadStep({ onNext, onBack }: StepProps) {
             Next →
           </Btn>
         ) : (
-          <Btn onClick={handleContinue} disabled={!file || previewRows.length === 0}>
+          <Btn onClick={handleContinue} disabled={!file || previewRows.length === 0 || isParsing}>
             Continue to Mapping →
           </Btn>
         )}

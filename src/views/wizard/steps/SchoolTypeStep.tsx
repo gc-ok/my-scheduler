@@ -164,9 +164,10 @@ export function SchoolTypeStep({ config: c, setConfig, onNext }: StepProps) {
           </p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 10 }}>
             {[
-              { value: "unified_self", label: "All Self-Contained",       desc: "One homeroom teacher covers all subjects." },
+              { value: "unified_self", label: "All Self-Contained",       desc: "One homeroom teacher covers all subjects for their class." },
               { value: "unified_dept", label: "All Departmentalized",     desc: "Subject specialists rotate through grades." },
               { value: "split_band",   label: "Split Band (K-2 / 3-5)",   desc: "K-2 self-contained, grades 3-5 departmentalized." },
+              { value: "platooning",   label: "Partner / Platooning",     desc: "Two teachers split subjects — one handles STEM (Math/Science), the other Humanities (ELA/Social Studies). Cohorts swap between them." },
             ].map(opt => (
               <Card key={opt.value} selected={c.elementaryModel === opt.value} onClick={() => setConfig({ ...c, elementaryModel: opt.value })}>
                 <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 3 }}>{opt.label}</div>

@@ -39,7 +39,10 @@ export interface Cohort {
   // for the same course at the same period (different teachers, same slot)
   parallelGroupId?: string;
   // Override the school-level scheduling model for this grade band
-  scheduleModel?: 'self_contained' | 'departmentalized';
+  scheduleModel?: 'self_contained' | 'departmentalized' | 'platooning';
+  // Platooning: second teacher handles Humanities (ELA/Social Studies) while primary handles STEM
+  partnerTeacherId?: string;
+  partnerTeacherName?: string;
 }
 
 export interface Course {
@@ -241,7 +244,7 @@ export interface WizardState {
   plcFrequency?: string;
 
   // Grade-specific configuration (set by SchoolTypeStep follow-up questions)
-  elementaryModel?: 'unified_self' | 'unified_dept' | 'split_band';
+  elementaryModel?: 'unified_self' | 'unified_dept' | 'split_band' | 'platooning';
   // Grades that use cohort-based scheduling. E.g. ["9"] for freshman cohorts, ["6","7","8"] for all MS grades.
   cohortGrades?: string[];
   useTeams?: boolean;
@@ -329,7 +332,7 @@ export interface EngineConfig {
   plcFrequency?: string;
 
   // Grade-specific config (forwarded from WizardState)
-  elementaryModel?: 'unified_self' | 'unified_dept' | 'split_band';
+  elementaryModel?: 'unified_self' | 'unified_dept' | 'split_band' | 'platooning';
   cohortGrades?: string[];
   useTeams?: boolean;
   teams?: Team[];

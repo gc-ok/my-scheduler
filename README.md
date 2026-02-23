@@ -1,104 +1,156 @@
-# K-12 Master Schedule Generator (GC Education Analytics)
+# K-12 Master Schedule Generator
 
-A completely in-browser, fully client-side React application for building, evaluating, and fine-tuning K-12 school master schedules. Designed with a modular architecture to handle the extreme edge-cases of educational time management.
+A fully client-side React application for building, evaluating, and fine-tuning K-12 master schedules. Runs entirely in the browser — no servers, no accounts, no data collection.
 
-## 🏗️ Architecture
-The codebase has been refactored from a monolithic `App.jsx` into a maintainable, feature-driven structure:
-* `src/core/engine.js`: The greedy scheduling algorithm, constraint evaluator, and structured logger.
-* `src/components/grid/`: The visual output layers (Master Grid, Teacher Grid, Room Grid).
-* `src/components/ui/CoreUI.jsx`: Reusable buttons, inputs, and layout wrappers.
-* `src/views/WizardSteps.jsx`: The state-driven setup forms to map school data before generation.
-* `src/App.jsx`: The primary orchestrator routing between setup state and the final grid view.
+---
 
-## ✨ Core Features Implemented
-* **Smart Bell Schedule Math:** Auto-calculates period lengths based on hard start/end times, or strictly adheres to fixed minute requirements.
-* **Split Lunch Waves (A/B/C Lunch):** Automatically balances departments across fractional blocks within a supersized lunch period, ensuring cafeteria capacity constraints are met while protecting minimum seat time.
-* **Dynamic WIN Time (What I Need):** Can inject standalone 30-minute intervention blocks mid-morning and cascade shift all subsequent bell times, or absorb an existing period.
-* **Common PLC Engine:** Groups teachers by department and enforces a "hard block" on a shared period, ensuring math teachers get a common prep before their classes are scheduled.
-* **Stateful Manual Editing:** Fully integrated drag-and-drop. Moving a section instantly updates room availability, teacher loads, and conflict checkers without regenerating the whole schedule.
-* **Structured Constraint Logger:** A developer-focused log view tracing the exact "Cost Score" of every section placement, explicitly showing why a period failed (e.g., "Exceeds target load", "Preferred room occupied").
+## Architecture
 
-## 🚀 The Roadmap: Future Features & Logic Targets
-As discussed during architectural planning, the following core features are necessary to cross from a "great scheduling tool" to a "production-ready master scheduler."
+```
+src/
+├── core/                     # Scheduling engine
+│   ├── engine.ts             # Main generation engine (cohort, departmental, block)
+│   ├── ResourceTracker.ts    # Teacher & room availability tracking during placement
+│   ├── studentScheduler.ts   # MRV-heuristic student-to-section placement
+│   ├── worker.ts             # Web Worker — runs engine off the main thread
+│   └── strategies/
+│       ├── ScheduleStrategies.ts   # Standard / A-B Block / Trimester strategies
+│       └── Block4x4Strategy.ts     # 4×4 Semester Block strategy
+├── store/
+│   └── useScheduleStore.ts   # Zustand global store (config, schedule, UI state)
+├── hooks/
+│   ├── useScheduleWorker.ts  # Sends work to worker, surfaces progress + errors
+│   ├── useSessionRestore.ts  # IndexedDB session detection on startup
+│   └── useScheduleExport.ts  # CSV export helpers
+├── utils/
+│   ├── db.ts                 # IndexedDB persistence (async + sync-flush for beforeunload)
+│   ├── csvParser.ts          # Pure parse functions: requests (multi-row / wide) + course info
+│   ├── ScheduleConfig.ts     # WizardState → EngineConfig normalizer
+│   └── theme.ts              # Color palette
+├── types/
+│   └── index.ts              # All shared TypeScript interfaces
+├── components/
+│   ├── grid/                 # Schedule output views
+│   │   ├── ScheduleGridView.tsx
+│   │   ├── MasterGrid.tsx
+│   │   ├── TeacherGrid.tsx
+│   │   └── RoomGrid.tsx
+│   ├── ErrorBoundary.tsx
+│   └── ui/CoreUI.tsx         # Shared atomic UI (Btn, Card, NumInput, Logo…)
+└── views/
+    └── wizard/
+        ├── WizardController.tsx
+        └── steps/
+            ├── SchoolTypeStep.tsx        # Step 1 — school type + elementary model
+            ├── ScheduleStructureStep.tsx # Step 2 — single vs multi-variant
+            ├── ScheduleTypeStep.tsx      # Step 3 — standard/block/trimester
+            ├── BellScheduleStep.tsx      # Step 4 — times, periods, passing
+            ├── LunchStep.tsx             # Step 5 — unit/split/multi lunch
+            ├── PlanPLCStep.tsx           # Step 6 — planning + PLC
+            ├── WINTimeStep.tsx           # Step 7 — intervention time
+            ├── RecessStep.tsx            # Step 8 — elementary recess
+            ├── DataInputStep.tsx         # Step 9 — input mode selector
+            ├── GenericInputStep.tsx      # Step 10 — quick setup / cohort builder
+            ├── CSVUploadStep.tsx         # Step 10 (CSV) — upload + type/format selection
+            ├── CSVMappingStep.tsx        # Step 11 (CSV) — header/column/staging config
+            ├── MultiScheduleStepWrapper.tsx
+            └── ConstraintsStep.tsx       # Final step — locks, rules, availability
+```
 
-### 1. Singletons & Double-Blocked Courses
-* **The Issue:** The current engine only handles single-period courses.
-* **The Fix:** Add properties to the Section object (`isDoubleBlock: true`, `singletonPriority: 1`). The engine must evaluate consecutive periods (e.g., P4 and P5 must be open simultaneously) and schedule singletons *first* before core classes eat up available slots.
+---
 
-### 2. Floating Teachers & Room Constraints
-* **The Issue:** We currently assign a "Home Room" to a teacher. If the room is double-booked, the algorithm hunts for an empty room.
-* **The Fix:** We need explicit `isFloater: true` toggles for teachers. The algorithm must dynamically map them to the rooms of teachers who are currently on their Plan/PLC period. 
+## Elementary Scheduling Models
 
-### 3. Part-Time Staff & Custom Blocked Periods
-* **The Issue:** The engine assumes all teachers are available for the entire timeline (effective slots). 
-* **The Fix:** Expand the Setup Wizard to allow explicit `UNAVAILABLE` blocking for specific teachers (e.g., "Mornings Only"). The engine will seed `teacherBlocked` with these periods before the greedy loop starts.
+Four models, selectable per school or overridden per cohort:
 
-### 4. Co-Teaching & Inclusion
-* **The Issue:** One section currently maps to one teacher.
-* **The Fix:** Allow a `coTeacherId` property on the section. The greedy evaluation loop will need to run the hard constraints check (`teacherBlocked`, `teacherSchedule`) against *both* IDs simultaneously before placing the section.
+| Model | Description |
+|-------|-------------|
+| **Self-Contained** | One homeroom teacher covers all core subjects for their cohort. |
+| **Departmentalized** | Subject specialists cover all cohorts at the grade level. Teacher is `null` pre-placement; bulk load-balancing loop assigns them. |
+| **Split Band** | K-2 auto-assigned self-contained, grades 3-5 departmentalized. |
+| **Partner / Platooning** | Two teachers split subjects — STEM teacher (Math, Science) and Humanities teacher (ELA, Social Studies). Cohorts swap between them. The placement engine produces the interleaved schedule naturally via cohort conflict + teacher conflict rules. |
 
-### 5. True Student Cohort Matrixing
-* **The Issue:** The current algorithm focuses on *Seat Coverage* (making sure 800 seats exist in Period 1). It does not track actual student schedules.
-* **The Fix:** Advanced feature implementation. We will need to define `Student` objects or "Cohorts" (e.g., "9th Grade Honors"). If a cohort needs AP Bio and Band, the engine must add massive cost penalties if it schedules those two singletons in the same period, forcing students to choose.
+Cohort-level `scheduleModel` overrides the school-level `elementaryModel` setting, enabling mixed models within one building.
 
-## Directory Structure
-my-scheduler/
-├── public/                     # Static assets served directly without Vite processing
-│   └── vite.svg                # Vite logo icon
-├── src/                        # Main application source code
-│   ├── assets/                 # Processed static assets (images, icons)
-│   │   └── react.svg           # React logo icon
-│   ├── components/             # Reusable React UI components
-│   │   ├── grid/               # Components for the final generated schedule view
-│   │   │   ├── MasterGrid.tsx       # Main combined grid layout
-│   │   │   ├── RoomGrid.tsx         # Schedule view organized by rooms
-│   │   │   ├── ScheduleGridView.tsx # Core wrapper for displaying the finished schedule
-│   │   │   └── TeacherGrid.tsx      # Schedule view organized by teachers
-│   │   ├── modals/             # Popup dialog components
-│   │   │   ├── PLCOrganizerModal.jsx        # UI for creating and managing PLCs
-│   │   │   └── TeacherAvailabilityModal.jsx # UI for managing teacher blocked periods
-│   │   └── ui/
-│   │       └── CoreUI.tsx      # Shared atomic UI elements (Buttons, Logos, Cards)
-│   ├── core/                   # The algorithmic brain of the application
-│   │   ├── strategies/         # Specialized scheduling algorithms
-│   │   │   ├── Block4x4Strategy.ts   # Logic for 4x4 block schedules
-│   │   │   └── ScheduleStrategies.ts # Standard/AB/Trimester scheduling logic
-│   │   ├── engine.ts           # The main master schedule generation engine
-│   │   ├── ResourceTracker.ts  # Tracks teacher and room availability during generation
-│   │   └── worker.ts           # Web Worker to run the engine in the background
-│   ├── types/                  # TypeScript interface definitions
-│   │   └── index.ts            # Core data models (Teacher, Section, Config, etc.)
-│   ├── utils/                  # Helper functions and constants
-│   │   ├── ScheduleConfig.ts   # Utilities for parsing and building the schedule config
-│   │   └── theme.ts            # Global color palette and styling constants
-│   ├── views/                  # High-level page views
-│   │   ├── wizard/             # The multi-step setup flow for creating a schedule
-│   │   │   ├── steps/          # Individual screens for the wizard flow
-│   │   │   │   ├── BellScheduleStep.tsx # Timeframe and period length config
-│   │   │   │   ├── ConstraintsStep.tsx  # Hard locks and scheduling rules
-│   │   │   │   ├── CSVUploadStep.tsx    # Bulk data import handler
-│   │   │   │   ├── LunchStep.tsx        # Split/Unit/Multi-period lunch config
-│   │   │   │   ├── PlanPLCStep.tsx      # Planning and Professional Learning Communities
-│   │   │   │   ├── RecessStep.tsx       # Elementary recess duty/time config
-│   │   │   │   ├── ScheduleTypeStep.tsx # Standard vs Block vs Trimester selection
-│   │   │   │   ├── SchoolTypeStep.tsx   # Elementary vs Middle vs High School setup
-│   │   │   │   ├── WINTimeStep.tsx      # "What I Need" / Intervention time config
-│   │   │   │   ├── DataInputStep.tsx    # Manual data entry hub
-│   │   │   │   ├── GenericInputStep.tsx # Quick-setup input forms
-│   │   │   │   └── index.ts             # Exports all steps for easy importing
-│   │   │   └── WizardController.tsx     # Manages state and routing between wizard steps
-│   │   └── WizardSteps.jsx     # Legacy/Alternative wizard component structure
-│   ├── App.css                 # Global application styling
-│   ├── App.tsx                 # Root React component connecting the Wizard and Engine
-│   ├── index.css               # Base CSS reset and font imports
-│   └── main.jsx                # React DOM entry point
-├── .gitignore                  # Specifies intentionally untracked files to ignore
-├── eslint.config.js            # Linter configuration for code quality
-├── index.html                  # Main HTML entry point for the Vite application
-├── package.json                # Project metadata, scripts, and dependencies
-├── package-lock.json           # Exact dependency version tree
-├── README.md                   # Project documentation
-├── tsconfig.json               # TypeScript compiler configuration for the frontend
-├── tsconfig.node.json          # TypeScript compiler configuration for Vite/Node
-├── vite.config.ts              # Vite bundler configuration
-└── oldengine.txt / formerappjsx.txt # Archived/Legacy reference files
+---
+
+## Schedule Types
+
+| Type | Details |
+|------|---------|
+| Standard Daily | 6-8 equal periods every day |
+| A/B Alternating Block | 4 long blocks across 2 alternating days |
+| 4×4 Semester Block | 4 courses per semester, full-year credit in one term |
+| Trimester | Three-term course rotation |
+| Team-Based (MS) | Interdisciplinary teams with shared cohort and auto-assigned common planning |
+| Modified Block | Hybrid daily + block days (e.g., M/W/F standard, T/Th block) |
+| Rotating Drop | N-period bank, N-1 meet daily, one drops in rotation |
+| Multi-Variant | Multiple day-type configs (A-day, B-day, Wednesday) in one project |
+
+---
+
+## CSV Import
+
+Two upload types, each with a guided column-mapping flow:
+
+**Course Requests**
+- Multi-row format: one row = one student–course pair
+- Wide format: one row = one student, multiple course columns with per-column priority / equal / alternate settings
+- Staging questions: section caps, default max class size, use alternates when full
+
+**Course Information**
+- Maps course name, teacher, room, department, section count, student count, max class size, grade level
+- Auto-generates one room per non-floater teacher when no room column is mapped
+- Floater teachers selected from a detected-names checkbox list
+
+CSV data is processed entirely in-browser via PapaParse (Web Worker off-thread) and cleared from the store after mapping to keep IndexedDB footprint small.
+
+---
+
+## Session Persistence
+
+Schedule and wizard state auto-save to IndexedDB:
+- Immediate save on each step advance
+- 1-second debounce for in-progress edits
+- Synchronous flush on `beforeunload` via a cached IDB connection (avoids async-chain reliability issues)
+
+On next load, the user is offered "Continue Session" or "Start Over."
+
+---
+
+## Data Flow
+
+```
+WizardState (flat)
+  └─ buildScheduleConfig() ──→ EngineConfig (nested, resolved)
+       └─ worker.ts (postMessage) ──→ engine.ts
+            ├─ Section generation (per school type / cohort model)
+            ├─ ResourceTracker (teacher + room availability)
+            ├─ Strategy placement (Standard / AB / 4x4 / Trimester / Elementary)
+            ├─ studentScheduler.ts (MRV-sorted request placement)
+            └─ ScheduleResult ──→ postMessage back ──→ Zustand store ──→ ScheduleGridView
+```
+
+---
+
+## Getting Started
+
+```bash
+npm install
+npm run dev       # http://localhost:5173
+npm run build     # Production build → dist/
+npm run preview   # Preview production build
+```
+
+Requires Node 18+.
+
+---
+
+## Tech Stack
+
+- **React 18** + TypeScript
+- **Vite** (dev server + build)
+- **Zustand** (global state)
+- **PapaParse** (CSV parsing, Web Worker mode)
+- **IndexedDB** (session persistence, no external dependency)
+- Web Workers (off-thread schedule generation)

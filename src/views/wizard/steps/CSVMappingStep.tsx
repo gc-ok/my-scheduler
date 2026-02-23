@@ -330,6 +330,10 @@ export const CSVMappingStep: React.FC<StepProps> = ({ onNext, onBack }) => {
           maxClassSize: defaultMaxSize,
         });
       }
+      // Drop the raw CSV grid from the store — the typed objects above are all we need going
+      // forward. Keeping csvData would re-persist potentially megabytes of raw strings to
+      // IndexedDB on every subsequent config change.
+      updateConfig({ csvData: undefined });
       onNext();
     } catch (err) {
       setParseError(`Processing error: ${err instanceof Error ? err.message : String(err)}`);

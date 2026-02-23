@@ -472,13 +472,22 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
     // Helper: resolve the scheduling model for a single cohort.
     // Priority: cohort.scheduleModel → split_band grade-band rule → global setting.
     const earlyGrades = new Set(['k', 'kindergarten', '0', '1', '2']);
-    const getCohortModel = (coh: typeof cohorts[0]): 'self_contained' | 'departmentalized' => {
+    const getCohortModel = (coh: typeof cohorts[0]): 'self_contained' | 'departmentalized' | 'platooning' => {
+      if (coh.scheduleModel === 'platooning') return 'platooning';
       if (coh.scheduleModel) return coh.scheduleModel;
+      // School-wide platooning setting — applies to all cohorts that don't override
+      if (config.elementaryModel === 'platooning') return 'platooning';
       if (config.elementaryModel === 'split_band') {
         return earlyGrades.has(String(coh.gradeLevel).toLowerCase()) ? 'self_contained' : 'departmentalized';
       }
       return (isElemSelf || (isElem && !isElemDept)) ? 'self_contained' : 'departmentalized';
     };
+
+    // Departments treated as STEM in platooning — primary teacher handles these
+    const PLATOONING_STEM_DEPTS = new Set([
+      'math', 'science', 'stem', 'technology', 'engineering', 'cs', 'computer science',
+      'mathematics', 'biology', 'chemistry', 'physics',
+    ]);
 
     if (isElem) {
       // ── ELEMENTARY (per-cohort model) ──
@@ -506,6 +515,35 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
               cohortId: coh.id,
               // Parallel: if K-2 cohorts share a parallel group, core subjects sync across them
               parallelGroupId: coh.parallelGroupId,
+              room: null, period: null, locked: false,
+            });
+          });
+        } else if (cohModel === 'platooning') {
+          // Platooning / partner teaching:
+          // - Primary teacher (coh.teacherId) handles STEM subjects (Math, Science…)
+          // - Partner teacher (coh.partnerTeacherId) handles Humanities (ELA, Social Studies…)
+          // - cohortId prevents the same cohort from having two subjects in the same period
+          // - Teacher conflicts prevent two cohorts from being with the same teacher at once
+          // → The placement engine naturally produces the interleaved swap schedule.
+          const partnerId   = coh.partnerTeacherId   || coh.teacherId;
+          const partnerName = coh.partnerTeacherName || coh.teacherName;
+          actualCore.forEach((course, idx) => {
+            const isStem = PLATOONING_STEM_DEPTS.has(course.department.toLowerCase()) ||
+                           PLATOONING_STEM_DEPTS.has(course.id.toLowerCase());
+            sections.push({
+              id: `${coh.id}-plat-${course.id}`,
+              courseId: course.id,
+              courseName: `${course.name} - ${coh.name}`,
+              sectionNum: idx + 1,
+              maxSize: course.maxSize || maxClassSize,
+              enrollment: coh.studentCount,
+              department: course.department,
+              gradeLevel: coh.gradeLevel,
+              roomType: course.roomType || "regular",
+              isCore: true,
+              teacher:     isStem ? (coh.teacherId   || null) : (partnerId   || null),
+              teacherName: isStem ? (coh.teacherName || undefined) : (partnerName || undefined),
+              cohortId: coh.id,
               room: null, period: null, locked: false,
             });
           });

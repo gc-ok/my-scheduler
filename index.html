@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Free, open-source K-12 master scheduling tool for elementary, middle, and high school. Self-contained cohorts, A/B Block, 4x4, Trimester, and more — built in your browser." />
+    <meta name="description" content="Free, open-source K-12 master scheduling tool for elementary, middle, and high school. Self-contained, departmentalized, partner/platooning cohorts, A/B Block, 4x4, Trimester, CSV import, and more — runs entirely in your browser." />
     <title>K-12 Master Scheduler — Elementary, Middle &amp; High School Scheduling</title>
     <style>
         :root {
@@ -484,11 +484,11 @@
             <div class="stat-label">Data Sent to Servers</div>
         </div>
         <div class="stat">
-            <div class="stat-value">11</div>
+            <div class="stat-value">12</div>
             <div class="stat-label">Guided Setup Steps</div>
         </div>
         <div class="stat">
-            <div class="stat-value">8+</div>
+            <div class="stat-value">9+</div>
             <div class="stat-label">Schedule Models</div>
         </div>
     </div>
@@ -506,12 +506,17 @@
                 <div class="feature-card">
                     <div class="feature-icon">&#128106;</div>
                     <h3>Cohort-Based Scheduling</h3>
-                    <p>Bind student groups to sections so the engine never double-books a cohort. Works for any grade level — elementary homerooms, freshmen academies, middle school teams, or custom grade ranges.</p>
+                    <p>Bind student groups to sections so the engine never double-books a cohort. Works for any grade level — elementary homerooms, freshmen academies, middle school teams, or custom grade ranges. Mix models within one building.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">&#127969;</div>
                     <h3>Elementary Specials Rotation</h3>
                     <p>Auto-generates Art, Music, and PE sections for every homeroom cohort, spreading specials across periods so room and teacher conflicts are impossible.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">&#129309;</div>
+                    <h3>Partner / Platooning Model</h3>
+                    <p>Two teachers split four core subjects — one handles STEM (Math &amp; Science), the other Humanities (ELA &amp; Social Studies). Cohorts swap between them each period. The engine produces the interleaved schedule automatically.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">&#128197;</div>
@@ -608,6 +613,8 @@
                     <ul>
                         <li>Self-Contained cohorts (homeroom teacher)</li>
                         <li>Departmentalized model (grade-level teacher swap)</li>
+                        <li>Partner / Platooning (STEM + Humanities teacher pair)</li>
+                        <li>Split Band — K-2 self-contained, 3-5 departmentalized</li>
                         <li>Auto-generates Math, ELA, Science, Social Studies per cohort</li>
                         <li>Specials rotation: Art, Music, PE for every homeroom</li>
                         <li>Recess period scheduling</li>
@@ -650,7 +657,7 @@
     <section>
         <div class="section-inner">
             <div class="section-label">Supported Formats</div>
-            <h2 class="section-title">8+ Schedule Models, One Tool</h2>
+            <h2 class="section-title">9+ Schedule Models, One Tool</h2>
             <p class="section-desc">
                 Full engine support for core models, with additional types in active development.
             </p>
@@ -671,6 +678,22 @@
                         <div>
                             <h4>Departmentalized</h4>
                             <p>Upper elementary teachers specialize by subject. Cohorts rotate to subject teachers, tracked for conflict-free placement.</p>
+                            <span class="type-tag tag-full">Full Engine Support</span>
+                        </div>
+                    </div>
+                    <div class="type-card">
+                        <div class="type-dot" style="background:#10B981"></div>
+                        <div>
+                            <h4>Partner / Platooning</h4>
+                            <p>Two teachers share a grade level — one covers STEM (Math &amp; Science), the other Humanities (ELA &amp; Social Studies). Cohorts interleave between them each period, producing a natural swap schedule.</p>
+                            <span class="type-tag tag-full">Full Engine Support</span>
+                        </div>
+                    </div>
+                    <div class="type-card">
+                        <div class="type-dot" style="background:#10B981"></div>
+                        <div>
+                            <h4>Split Band (K-2 / 3-5)</h4>
+                            <p>Younger grades use self-contained homerooms; upper elementary uses subject specialists. Mix both in one schedule automatically.</p>
                             <span class="type-tag tag-full">Full Engine Support</span>
                         </div>
                     </div>
