@@ -108,6 +108,28 @@ export abstract class BaseStrategy {
     return true;
   }
 
+  protected findAvailableRoomForSection(sec: Section, slotId: string, rooms: Room[]): Room | undefined {
+    const potentialRooms = rooms.filter(r => 
+      r.type === sec.roomType && 
+      this.tracker.isRoomAvailable(r.id, slotId) &&
+      (!r.capacity || r.capacity >= sec.enrollment)
+    );
+
+    if (potentialRooms.length === 0) {
+      return undefined;
+    }
+
+    // If the section's preferred room is in the list of potential rooms, use it.
+    const preferredRoom = sec.room ? potentialRooms.find(r => r.id === sec.room) : undefined;
+    if (preferredRoom) {
+      return preferredRoom;
+    }
+
+    // Fallback: sort by least-owned rooms first to leave owned rooms for their owners.
+    potentialRooms.sort((a, b) => (!!this.tracker.roomOwners[a.id] ? 1 : 0) - (!!this.tracker.roomOwners[b.id] ? 1 : 0));
+    return potentialRooms[0];
+  }
+
   execute(sections: Section[], periodList: Period[], rooms: Room[]): ScheduleConflict[] {
     const schedulablePeriods = periodList.filter(p => p.id !== "WIN" && p.type !== "win" && p.type !== "recess");
     const timeSlots = this.generateTimeSlots(schedulablePeriods);
@@ -170,6 +192,12 @@ export abstract class BaseStrategy {
         if (!this.checkTravelTime(sec.teacher, slotId, periodList)) fails.push("Travel time violation");
         if (sec.cohortId && !this.tracker.isCohortAvailable(sec.cohortId, slotId)) fails.push("Cohort conflict: group already scheduled this period");
 
+        // Room Capacity Check (New)
+        const availableRoom = this.findAvailableRoomForSection(sec, slotId, rooms);
+        if (!availableRoom) {
+          fails.push("No available room with sufficient capacity");
+        }
+
         if (fails.length > 0) {
           periodEvaluations.push({ period: slotId, cost: Infinity, reasons: fails });
           continue;
@@ -180,8 +208,9 @@ export abstract class BaseStrategy {
         if (this.tracker.getTeacherLoad(sec.teacher, term) >= this.tracker.maxLoad) { 
           cost += 500; softFails.push(`Exceeds ${term} target load`); 
         }
-        if (sec.room && !this.tracker.isRoomAvailable(sec.room, slotId)) { 
-          cost += 100; softFails.push("Preferred room occupied"); 
+        // We now know a room is available, but let's penalize if it's not the preferred one.
+        if (sec.room && sec.room !== availableRoom.id) { 
+          cost += 100; softFails.push("Preferred room occupied or unsuitable"); 
         }
 
         // 3. SINGLETON SPREADING
@@ -239,14 +268,13 @@ export abstract class BaseStrategy {
     this.secsInPeriod[slot]++;
     const term = getTermFromSlot(slot);
     
-    let finalRoom: string | null | undefined = sec.room;
-    if (!finalRoom || !this.tracker.isRoomAvailable(finalRoom, slot)) {
-      const availableRooms = rooms.filter(r => r.type === sec.roomType && this.tracker.isRoomAvailable(r.id, slot));
-      availableRooms.sort((a, b) => (!!this.tracker.roomOwners[b.id] ? 1 : 0) - (!!this.tracker.roomOwners[a.id] ? 1 : 0));
-      if(availableRooms.length > 0) finalRoom = availableRooms[0].id; 
+    const foundRoom = this.findAvailableRoomForSection(sec, slot, rooms);
+    const finalRoom = foundRoom ? foundRoom.id : null;
+    
+    sec.room = finalRoom; // Update section's assigned room
+    if(finalRoom) { 
+      sec.roomName = foundRoom?.name; 
     }
-
-    if(finalRoom) { sec.roomName = rooms.find(r=>r.id===finalRoom)?.name; }
     
     this.tracker.assignPlacement(sec, slot, sec.teacher, sec.coTeacher, finalRoom, term);
     this.logger.logPlacement(sec, slot, cost, evals);

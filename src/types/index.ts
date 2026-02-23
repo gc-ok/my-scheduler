@@ -46,6 +46,21 @@ export interface Course {
   largeCapacity?: boolean;  // Allows larger class size (PE, assembly, etc.)
 }
 
+export interface CourseRequest {
+  courseId: string;
+  // Priority: lower is higher. 1 is a required course. 10+ are alternates.
+  priority: number;
+  // Optional: could be a group of alternates, e.g. "choose 1 from [Art, Music]"
+  alternateGroupId?: string;
+}
+
+export interface Student {
+  id: string;
+  name: string;
+  gradeLevel: string;
+  requests: CourseRequest[];
+}
+
 export interface CourseRelationship {
   id?: string;
   type: "avoid_overlap" | "require_overlap";
@@ -206,6 +221,7 @@ export interface WizardState {
   teacherAvailability?: TeacherAvailability[];
   courseRelationships?: CourseRelationship[];
   periods?: Period[];
+  students?: Student[];
 
   // Scalar settings
   studentCount?: number;
@@ -271,6 +287,7 @@ export interface EngineConfig {
   teacherAvailability?: TeacherAvailability[];
   courseRelationships?: CourseRelationship[];
   periods: Period[];
+  students?: Student[];
 
   studentCount: number;
   maxClassSize: number;

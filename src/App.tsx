@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useCallback } from "react";
+import useScheduleStore from "./store/useScheduleStore";
 import ScheduleGridView from "./components/grid/ScheduleGridView";
 import WizardController from "./views/wizard/WizardController";
 import { Logo } from "./components/ui/CoreUI";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { WizardState, ScheduleResult } from "./types";
 import { saveToDB } from "./utils/db";
 import { useScheduleWorker } from "./hooks/useScheduleWorker";
 import { useSessionRestore } from "./hooks/useSessionRestore";
@@ -11,18 +11,29 @@ import { useScheduleExport } from "./hooks/useScheduleExport";
 import css from "./App.module.css";
 
 export default function App() {
-  const [step, setStep] = useState<number>(0);
-  const [config, setConfig] = useState<WizardState>({});
-  const [schedule, setSchedule] = useState<ScheduleResult | null>(null);
+  // Select state and actions from the Zustand store
+  const {
+    step,
+    config,
+    schedule,
+    isGenerating,
+    genProgress,
+    errorState,
+    pendingRestore,
+    setStep,
+    setSchedule,
+  } = useScheduleStore();
 
-  const { isDataLoaded, pendingRestore, acceptRestore, declineRestore } = useSessionRestore();
-  const { isGenerating, genProgress, errorState, generate, regenerate, clearError } = useScheduleWorker(config, setSchedule, setStep);
+  // Hooks are now simpler and don't need props or return state
+  const { isDataLoaded, acceptRestore, declineRestore } = useSessionRestore();
+  const { generate, regenerate, clearError } = useScheduleWorker();
   const { exportCSV } = useScheduleExport(schedule);
 
-  // Debounced persistence
+  // Debounced persistence effect now reads from the store
   useEffect(() => {
     if (!isDataLoaded) return;
     const timer = setTimeout(() => {
+      const { step, config } = useScheduleStore.getState();
       if (Object.keys(config).length > 0) {
         saveToDB("config", config);
         saveToDB("step", step);
@@ -31,25 +42,10 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [config, step, isDataLoaded]);
 
-  const handleContinueSession = useCallback(() => {
-    const data = acceptRestore();
-    if (data) {
-      setConfig(data.config);
-      setStep(data.step);
-      if (data.schedule) setSchedule(data.schedule);
-    }
-  }, [acceptRestore]);
-
-  const handleStartOver = useCallback(async () => {
-    await declineRestore();
-    setConfig({});
-    setStep(0);
-    setSchedule(null);
-  }, [declineRestore]);
-
   const regen = useCallback((activeVariantId = 'default') => {
-    if (schedule) regenerate(schedule, activeVariantId);
-  }, [schedule, regenerate]);
+    const currentSchedule = useScheduleStore.getState().schedule;
+    if (currentSchedule) regenerate(currentSchedule, activeVariantId);
+  }, [regenerate]);
 
   const ErrorModal = () => (
     <div className={css.errorOverlay} role="dialog" aria-modal="true" aria-labelledby="error-title">
@@ -89,10 +85,10 @@ export default function App() {
             You have a saved session at {stepLabel}. Would you like to pick up where you left off?
           </p>
           <div className={css.welcomeActions}>
-            <button className={css.welcomeBtnPrimary} onClick={handleContinueSession}>
+            <button className={css.welcomeBtnPrimary} onClick={acceptRestore}>
               Continue Session
             </button>
-            <button className={css.welcomeBtnSecondary} onClick={handleStartOver}>
+            <button className={css.welcomeBtnSecondary} onClick={declineRestore}>
               Start Over
             </button>
           </div>
@@ -129,7 +125,8 @@ export default function App() {
   return (
     <div className={css.root}>
       {errorState && <ErrorModal />}
-      <WizardController step={step} setStep={setStep} config={config} setConfig={setConfig} onComplete={generate} />
+      <WizardController onComplete={generate} />
     </div>
   );
 }
+

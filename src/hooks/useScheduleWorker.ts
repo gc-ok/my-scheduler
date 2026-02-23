@@ -1,26 +1,22 @@
-import { useEffect, useRef, useState } from "react";
-import { WizardState, ScheduleResult, Section } from "../types";
+import { useEffect, useRef } from "react";
+import useScheduleStore from "../store/useScheduleStore";
+import { ScheduleResult, Section } from "../types";
 import { buildScheduleConfig } from "../utils/scheduleConfig";
 import { validateConfig } from "../utils/validator";
 import { saveToDB } from "../utils/db";
 
-interface WorkerState {
-  isGenerating: boolean;
-  genProgress: { msg: string; pct: number };
-  errorState: { title: string; messages: string[] } | null;
-}
-
-export function useScheduleWorker(
-  config: WizardState,
-  setSchedule: (s: ScheduleResult) => void,
-  setStep: (step: number) => void,
-) {
+export function useScheduleWorker() {
   const workerRef = useRef<Worker | null>(null);
-  const [state, setState] = useState<WorkerState>({
-    isGenerating: false,
-    genProgress: { msg: "Starting...", pct: 0 },
-    errorState: null,
-  });
+  
+  // Get state and actions from the Zustand store
+  const { 
+    config,
+    setSchedule, 
+    setStep, 
+    setIsGenerating,
+    setGenProgress,
+    setErrorState 
+  } = useScheduleStore();
 
   useEffect(() => {
     workerRef.current = new Worker(new URL('../core/worker.ts', import.meta.url), { type: 'module' });
@@ -29,66 +25,65 @@ export function useScheduleWorker(
       const { status, data, error, message, percentage, variantId } = e.data;
 
       if (status === 'PROGRESS') {
-        setState(prev => ({ ...prev, genProgress: { msg: message, pct: percentage } }));
+        setGenProgress({ msg: message, pct: percentage });
         return;
       }
 
-      setState(prev => ({ ...prev, isGenerating: false }));
+      setIsGenerating(false);
       if (status === 'SUCCESS') {
         saveToDB("schedule", data);
         setSchedule(data);
         setStep(99);
       } else if (status === 'VARIANT_SUCCESS') {
-        setSchedule((prevSchedule) => {
-          if (!prevSchedule) return null;
-          const newSchedule = {
-            ...prevSchedule,
-            variants: {
-              ...prevSchedule.variants,
-              [variantId]: data,
-            }
-          };
-          saveToDB("schedule", newSchedule);
-          return newSchedule;
-        });
+        const currentSchedule = useScheduleStore.getState().schedule;
+        if (!currentSchedule) return;
+        
+        const newSchedule = {
+          ...currentSchedule,
+          variants: {
+            ...currentSchedule.variants,
+            [variantId]: data,
+          }
+        };
+        saveToDB("schedule", newSchedule);
+        setSchedule(newSchedule);
+
       } else {
         console.error("Scheduling Engine Error:", error);
-        setState(prev => ({
-          ...prev,
-          errorState: { title: "Scheduling Engine Error", messages: [error || "An unknown error occurred."] },
-        }));
+        setErrorState({ title: "Scheduling Engine Error", messages: [error || "An unknown error occurred."] });
       }
     };
 
     return () => { workerRef.current?.terminate(); };
-  }, [setSchedule, setStep]);
+  }, [setSchedule, setStep, setIsGenerating, setGenProgress, setErrorState]);
 
   const generate = () => {
-    setState(prev => ({ ...prev, errorState: null }));
+    setErrorState(null);
     const validationErrors = validateConfig(config);
     if (validationErrors.length > 0) {
-      setState(prev => ({
-        ...prev,
-        errorState: { title: "Configuration Error", messages: validationErrors },
-      }));
+      setErrorState({ title: "Configuration Error", messages: validationErrors });
       return;
     }
 
-    setState(prev => ({ ...prev, isGenerating: true, genProgress: { msg: "Initializing...", pct: 0 } }));
+    setIsGenerating(true);
+    setGenProgress({ msg: "Initializing...", pct: 0 });
     const configPayload = buildScheduleConfig(config);
     workerRef.current?.postMessage({ action: 'GENERATE', configPayload });
   };
 
   const regenerate = (schedule: ScheduleResult, activeVariantId = 'default') => {
-    setState(prev => ({ ...prev, isGenerating: true, genProgress: { msg: "Refactoring...", pct: 0 } }));
+    setErrorState(null);
+    setIsGenerating(true);
+    setGenProgress({ msg: "Refactoring...", pct: 0 });
 
     const activeVariant = schedule.variants[activeVariantId];
     if (!activeVariant) {
       console.error("Could not find active variant in schedule to regenerate.");
-      setState(prev => ({...prev, isGenerating: false}));
+      setIsGenerating(false);
       return;
     }
 
+    // Calculate overrides from the current state of the schedule
     const lockedSections = activeVariant.sections.filter((s: Section) => s.locked);
     const manualSections = activeVariant.sections.filter((s: Section) => s.isManual && !s.locked);
     const sizeOverrides = activeVariant.sections
@@ -96,23 +91,31 @@ export function useScheduleWorker(
       .map((s: Section) => ({ sectionId: s.id, enrollment: s.enrollment }));
 
     // Rebuild the config payload, but only for the single variant we are regenerating
-    const fullPayload = buildScheduleConfig(config);
+    const fullPayload = buildScheduleConfig(useScheduleStore.getState().config);
     const regenTargetConfig = fullPayload.configs[activeVariantId];
     
     const singleVariantDef = schedule.variantDefs.find(v => v.id === activeVariantId) || { id: 'default', name: 'Default', assignedDays: []};
 
+    // This payload mimics a 'single' generation run, but with overrides added
     const regenPayload = {
-      structure: 'single',
+      structure: 'single' as 'single',
       variantDefs: [singleVariantDef],
       configs: {
         'default': { ...regenTargetConfig, lockedSections, manualSections }
       }
     };
 
-    workerRef.current?.postMessage({ action: 'GENERATE_WITH_OVERRIDES', configPayload: regenPayload, sizeOverrides, targetVariantId: activeVariantId });
+    workerRef.current?.postMessage({ 
+      action: 'GENERATE_WITH_OVERRIDES', 
+      configPayload: regenPayload, 
+      sizeOverrides, 
+      targetVariantId: activeVariantId 
+    });
   };
 
-  const clearError = () => setState(prev => ({ ...prev, errorState: null }));
+  const clearError = () => setErrorState(null);
 
-  return { ...state, generate, regenerate, clearError };
+  // The hook now returns only the functions, as the state is global
+  return { generate, regenerate, clearError };
 }
+

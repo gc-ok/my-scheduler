@@ -1,16 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import useScheduleStore, { PendingRestore } from "../store/useScheduleStore";
 import { WizardState, ScheduleResult } from "../types";
 import { loadFromDB, clearDB } from "../utils/db";
 
-interface PendingRestore {
-  config: WizardState;
-  step: number;
-  schedule: ScheduleResult | null;
-}
-
 export function useSessionRestore() {
   const [isDataLoaded, setIsDataLoaded] = useState(false);
-  const [pendingRestore, setPendingRestore] = useState<PendingRestore | null>(null);
+  const { setPendingRestore, setConfig, setStep, setSchedule, reset } = useScheduleStore();
 
   useEffect(() => {
     const restoreSession = async () => {
@@ -33,18 +28,25 @@ export function useSessionRestore() {
       }
     };
     restoreSession();
-  }, []);
+  }, [setPendingRestore]);
 
-  const acceptRestore = () => {
-    const data = pendingRestore;
-    setPendingRestore(null);
-    return data;
-  };
+  const acceptRestore = useCallback(() => {
+    const data = useScheduleStore.getState().pendingRestore;
+    if (data) {
+      setConfig(data.config);
+      setStep(data.step);
+      if (data.schedule) {
+        setSchedule(data.schedule);
+      }
+      setPendingRestore(null);
+    }
+  }, [setConfig, setStep, setSchedule, setPendingRestore]);
 
-  const declineRestore = async () => {
+  const declineRestore = useCallback(async () => {
     setPendingRestore(null);
     await clearDB();
-  };
+    reset();
+  }, [setPendingRestore, reset]);
 
-  return { isDataLoaded, pendingRestore, acceptRestore, declineRestore };
+  return { isDataLoaded, acceptRestore, declineRestore };
 }

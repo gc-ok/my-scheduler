@@ -273,9 +273,9 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
 
   const safePlanPeriods = Number(planPeriodsPerDay) || 1;
   
-  // UPDATE: Subtract Recess from effective slots so teachers aren't expected to teach during it
+  const lunchPeriodsCount = periodList.filter(p => p.type === 'unit_lunch' || p.type === 'multi_lunch').length;
   const recessCount = periodList.filter(p => p.type === "recess").length;
-  const effectiveSlots = (isSplitLunch ? numTeachingPeriods : numTeachingPeriods - 1) - recessCount; 
+  const effectiveSlots = numTeachingPeriods - lunchPeriodsCount - recessCount; 
   
   let dailyMaxLoad = Math.max(1, effectiveSlots - safePlanPeriods - (plcEnabled ? 1 : 0));
   let maxLoad = config.scheduleType === "ab_block" ? (dailyMaxLoad * 2) : dailyMaxLoad;
@@ -648,7 +648,7 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
 
   seededShuffle(sections, rng).forEach(sec => {
     const candidates = teachers.filter(t => (t.departments||[]).includes(sec.department));
-    const pool = candidates.length > 0 ? candidates : teachers; 
+    const pool = candidates; 
     
     pool.sort((a,b) => intendedLoad[a.id] - intendedLoad[b.id]); // Load balancing
     
