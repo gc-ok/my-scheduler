@@ -62,11 +62,28 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
   const [expanded, setExpanded] = useState<number | null>(null);
 
   // ELEMENTARY COHORT STATE
-  const [cohorts, setCohorts] = useState<any[]>([
-    { id: "c1", name: "1A", gradeLevel: "1", teacherId: "", studentCount: 25 },
-    { id: "c2", name: "1B", gradeLevel: "1", teacherId: "", studentCount: 25 },
-    { id: "c3", name: "2A", gradeLevel: "2", teacherId: "", studentCount: 26 },
-  ]);
+  const [cohorts, setCohorts] = useState<any[]>(
+    c.cohorts && c.cohorts.length > 0 ? c.cohorts : [
+      { id: "c1", name: "1A", gradeLevel: "1", teacherName: "", studentCount: 25 },
+      { id: "c2", name: "1B", gradeLevel: "1", teacherName: "", studentCount: 25 },
+      { id: "c3", name: "2A", gradeLevel: "2", teacherName: "", studentCount: 26 },
+    ]
+  );
+
+  // ELEMENTARY COURSE STATE — core subjects + specials
+  const DEFAULT_ELEM_COURSES = [
+    { id: "math",    name: "Math",           department: "Math",           required: true,  isSpecial: false, roomType: "regular" },
+    { id: "ela",     name: "ELA",            department: "ELA",            required: true,  isSpecial: false, roomType: "regular" },
+    { id: "science", name: "Science",         department: "Science",        required: true,  isSpecial: false, roomType: "regular" },
+    { id: "social",  name: "Social Studies",  department: "Social Studies", required: true,  isSpecial: false, roomType: "regular" },
+    { id: "art",     name: "Art",             department: "Art",            required: false, isSpecial: true,  roomType: "regular" },
+    { id: "music",   name: "Music",           department: "Music",          required: false, isSpecial: true,  roomType: "regular" },
+    { id: "pe",      name: "PE",              department: "PE",             required: false, isSpecial: true,  roomType: "gym"     },
+  ];
+  const [elemCourses, setElemCourses] = useState<any[]>(
+    c.courses && c.courses.length > 0 ? c.courses : DEFAULT_ELEM_COURSES
+  );
+  const upEC = (i: number, f: string, v: any) => { const d = [...elemCourses]; d[i] = { ...d[i], [f]: v }; setElemCourses(d); };
 
   const upD = (i: number, f: string, v: any) => { const d = [...depts]; d[i] = { ...d[i], [f]: v }; setDepts(d); };
 
@@ -87,22 +104,51 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
 
   const cont = () => {
     if (isElem) {
-      // ELEMENTARY LOGIC
+      // ELEMENTARY LOGIC — build teachers from cohorts + specials courses
       const teachers: any[] = [];
+
+      // Homeroom teachers (one per cohort)
       cohorts.forEach((coh, i) => {
         teachers.push({
           id: coh.teacherId || `t_hr_${i}`,
-          name: coh.teacherName || `HR Teacher ${coh.name}`,
+          name: coh.teacherName || `Homeroom ${coh.name}`,
           departments: ["Homeroom", `Grade ${coh.gradeLevel}`],
-          planPeriods: planP
+          planPeriods: planP,
         });
       });
-      // Add Specials Teachers
-      teachers.push({ id: "t_art", name: "Art Teacher", departments: ["Art"], planPeriods: planP });
-      teachers.push({ id: "t_music", name: "Music Teacher", departments: ["Music"], planPeriods: planP });
-      teachers.push({ id: "t_pe", name: "PE Teacher", departments: ["PE"], planPeriods: planP });
 
-      setConfig({ ...c, cohorts, teachers, studentCount: sc, roomCount: rc, maxClassSize: ms, students: { count: sc } });
+      // Specials teachers — one per specials course (deduped by department)
+      const seenDepts = new Set<string>();
+      elemCourses.filter(ec => ec.isSpecial).forEach((ec, i) => {
+        if (!seenDepts.has(ec.department)) {
+          seenDepts.add(ec.department);
+          teachers.push({
+            id: `t_spec_${ec.id}_${i}`,
+            name: `${ec.name} Teacher`,
+            departments: [ec.department],
+            planPeriods: planP,
+            requiresGym: ec.roomType === "gym",
+          });
+        }
+      });
+
+      // Rooms: one per cohort (regular) + gym if PE is included
+      const rooms: any[] = [];
+      cohorts.forEach((_, i) => rooms.push({ id: `room_${i + 1}`, name: `Room ${101 + i}`, type: "regular", capacity: ms }));
+      if (elemCourses.some(ec => ec.roomType === "gym")) {
+        rooms.push({ id: "gym_1", name: "Gym", type: "gym", capacity: ms * 3 });
+      }
+
+      setConfig({
+        ...c,
+        cohorts,
+        courses: elemCourses.map(ec => ({ ...ec, maxSize: ms })),
+        teachers,
+        rooms,
+        studentCount: sc,
+        maxClassSize: ms,
+        students: { count: sc },
+      });
       onNext();
       return;
     }
@@ -135,35 +181,143 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
   };
 
   if (isElem) {
+    const coreCourses  = elemCourses.filter(ec => !ec.isSpecial);
+    const specCourses  = elemCourses.filter(ec => ec.isSpecial);
     return (
       <div>
-        <h2 style={{ color: COLORS.primary, marginBottom: 6 }}>Elementary Cohort Setup</h2>
-        <p style={{ color: COLORS.textLight, marginBottom: 20 }}>Define your homerooms (Cohorts). Students stay together.</p>
-        
-        <div style={{ maxWidth: 750 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
+        <h2 style={{ color: COLORS.primary, marginBottom: 6 }}>Elementary Setup</h2>
+        <p style={{ color: COLORS.textLight, marginBottom: 20 }}>
+          Define your cohorts (homerooms) and the subjects each cohort is taught.
+          The engine creates one section per cohort per subject and prevents scheduling conflicts.
+        </p>
+
+        <div style={{ maxWidth: 780 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 20 }}>
             <NumInput label="Total Students" min={10} max={5000} value={sc} onChange={setSc} />
-            <NumInput label="Max Class Size" min={10} max={50} value={ms} onChange={setMs} />
+            <NumInput label="Max Class Size"  min={10} max={50}   value={ms} onChange={setMs} />
           </div>
 
-          <h3 style={{ fontSize: 15, marginBottom: 10 }}>🏫 Cohorts (Homerooms)</h3>
+          {/* ── COHORTS ── */}
+          <h3 style={{ fontSize: 15, marginBottom: 8, color: COLORS.text }}>🏫 Cohorts (Homerooms)</h3>
+          <p style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 10 }}>
+            Each cohort is a fixed group of students who travel together. The homeroom teacher
+            covers all core subjects for their cohort.
+          </p>
           {cohorts.map((coh, i) => (
-            <div key={coh.id} style={{ display: "flex", gap: 8, padding: 10, background: COLORS.offWhite, borderRadius: 8, marginBottom: 8, alignItems: "center" }}>
-              <input value={coh.name} onChange={e => { const n = [...cohorts]; n[i].name = e.target.value; setCohorts(n); }} placeholder="Name (e.g. 1A)" style={{ ...INPUT_STYLE, width: 80 }} />
-              <select value={coh.gradeLevel} onChange={e => { const n = [...cohorts]; n[i].gradeLevel = e.target.value; setCohorts(n); }} style={{ ...SELECT_STYLE, width: 100 }}>
+            <div key={coh.id} style={{ display: "flex", gap: 8, padding: 10, background: COLORS.offWhite, borderRadius: 8, marginBottom: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <input
+                value={coh.name}
+                onChange={e => { const n = [...cohorts]; n[i] = { ...n[i], name: e.target.value }; setCohorts(n); }}
+                placeholder="Name (e.g. 1A)"
+                style={{ ...INPUT_STYLE, width: 80 }}
+              />
+              <select
+                value={coh.gradeLevel}
+                onChange={e => { const n = [...cohorts]; n[i] = { ...n[i], gradeLevel: e.target.value }; setCohorts(n); }}
+                style={{ ...SELECT_STYLE, width: 90 }}
+              >
                 {["K","1","2","3","4","5","6"].map(g => <option key={g} value={g}>Gr {g}</option>)}
               </select>
-              <input value={coh.teacherName || ""} onChange={e => { const n = [...cohorts]; n[i].teacherName = e.target.value; setCohorts(n); }} placeholder="Homeroom Teacher" style={{ ...INPUT_STYLE, flex: 1 }} />
-              <input type="number" value={coh.studentCount} onChange={e => { const n = [...cohorts]; n[i].studentCount = parseInt(e.target.value); setCohorts(n); }} style={{ ...SMALL_INPUT, width: 60 }} />
-              <button aria-label={`Remove cohort ${coh.name}`} onClick={() => setCohorts(cohorts.filter((_, j) => j !== i))} style={{ cursor: "pointer", color: COLORS.danger, marginLeft: 8, background: "none", border: "none", fontSize: "inherit", fontFamily: "inherit" }}>×</button>
+              <input
+                value={coh.teacherName || ""}
+                onChange={e => { const n = [...cohorts]; n[i] = { ...n[i], teacherName: e.target.value }; setCohorts(n); }}
+                placeholder="Homeroom Teacher name"
+                style={{ ...INPUT_STYLE, flex: 1, minWidth: 140 }}
+              />
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <input
+                  type="number" min={5} max={50}
+                  value={coh.studentCount}
+                  onChange={e => { const n = [...cohorts]; n[i] = { ...n[i], studentCount: parseInt(e.target.value) || 0 }; setCohorts(n); }}
+                  style={{ ...SMALL_INPUT, width: 56 }}
+                />
+                <span style={{ fontSize: 11, color: COLORS.textLight }}>sts</span>
+              </div>
+              <button
+                aria-label={`Remove cohort ${coh.name}`}
+                onClick={() => setCohorts(cohorts.filter((_, j) => j !== i))}
+                style={{ cursor: "pointer", color: COLORS.danger, background: "none", border: "none", fontSize: 18, lineHeight: 1, fontFamily: "inherit" }}
+              >×</button>
             </div>
           ))}
-          <Btn variant="ghost" small onClick={() => setCohorts([...cohorts, { id: `c_${Date.now()}`, name: "New", gradeLevel: "1", studentCount: 25 }])}>+ Add Cohort</Btn>
+          <Btn variant="ghost" small onClick={() => setCohorts([...cohorts, { id: `c_${Date.now()}`, name: "", gradeLevel: "1", teacherName: "", studentCount: 25 }])}>
+            + Add Cohort
+          </Btn>
+
+          {/* ── CORE SUBJECTS ── */}
+          <h3 style={{ fontSize: 15, margin: "24px 0 8px", color: COLORS.text }}>📚 Core Subjects</h3>
+          <p style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 10 }}>
+            Taught by the homeroom teacher. One section per cohort is generated automatically.
+          </p>
+          {coreCourses.map((ec, _) => {
+            const i = elemCourses.indexOf(ec);
+            return (
+              <div key={ec.id} style={{ display: "flex", gap: 8, padding: "8px 10px", background: COLORS.offWhite, borderRadius: 8, marginBottom: 6, alignItems: "center" }}>
+                <input
+                  value={ec.name}
+                  onChange={e => upEC(i, "name", e.target.value)}
+                  placeholder="Subject name"
+                  style={{ ...INPUT_STYLE, flex: 1 }}
+                />
+                <select value={ec.roomType || "regular"} onChange={e => upEC(i, "roomType", e.target.value)} style={{ ...SELECT_STYLE, width: 90, fontSize: 12, padding: "5px 8px" }}>
+                  <option value="regular">Room</option>
+                  <option value="lab">Lab</option>
+                  <option value="gym">Gym</option>
+                </select>
+                <button
+                  aria-label={`Remove ${ec.name}`}
+                  onClick={() => setElemCourses(elemCourses.filter((_, j) => j !== i))}
+                  style={{ cursor: "pointer", color: COLORS.danger, background: "none", border: "none", fontSize: 18, lineHeight: 1, fontFamily: "inherit" }}
+                >×</button>
+              </div>
+            );
+          })}
+          <Btn variant="ghost" small onClick={() => setElemCourses([...elemCourses, { id: `core_${Date.now()}`, name: "", department: `Subject_${Date.now()}`, required: true, isSpecial: false, roomType: "regular" }])}>
+            + Add Core Subject
+          </Btn>
+
+          {/* ── SPECIALS ── */}
+          <h3 style={{ fontSize: 15, margin: "24px 0 8px", color: COLORS.text }}>🎨 Specials (Rotation)</h3>
+          <p style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 10 }}>
+            Each specials teacher rotates through all cohorts. One section per cohort per special is created.
+          </p>
+          {specCourses.map((ec, _) => {
+            const i = elemCourses.indexOf(ec);
+            return (
+              <div key={ec.id} style={{ display: "flex", gap: 8, padding: "8px 10px", background: COLORS.offWhite, borderRadius: 8, marginBottom: 6, alignItems: "center" }}>
+                <input
+                  value={ec.name}
+                  onChange={e => upEC(i, "name", e.target.value)}
+                  placeholder="Special name (e.g. Art)"
+                  style={{ ...INPUT_STYLE, flex: 1 }}
+                />
+                <select value={ec.roomType || "regular"} onChange={e => upEC(i, "roomType", e.target.value)} style={{ ...SELECT_STYLE, width: 90, fontSize: 12, padding: "5px 8px" }}>
+                  <option value="regular">Room</option>
+                  <option value="gym">Gym</option>
+                </select>
+                <button
+                  aria-label={`Remove ${ec.name}`}
+                  onClick={() => setElemCourses(elemCourses.filter((_, j) => j !== i))}
+                  style={{ cursor: "pointer", color: COLORS.danger, background: "none", border: "none", fontSize: 18, lineHeight: 1, fontFamily: "inherit" }}
+                >×</button>
+              </div>
+            );
+          })}
+          <Btn variant="ghost" small onClick={() => setElemCourses([...elemCourses, { id: `spec_${Date.now()}`, name: "", department: `Specials_${Date.now()}`, required: false, isSpecial: true, roomType: "regular" }])}>
+            + Add Special
+          </Btn>
+
+          {/* summary */}
+          <div style={{ marginTop: 16, padding: "10px 14px", borderRadius: 8, background: COLORS.accentLight, fontSize: 12, color: COLORS.darkGray }}>
+            <strong>Engine will generate:</strong>&nbsp;
+            {cohorts.length} cohorts × {coreCourses.length} core sections + {cohorts.length} cohorts × {specCourses.length} specials sections
+            &nbsp;=&nbsp;<strong>{cohorts.length * (coreCourses.length + specCourses.length)} total sections</strong>
+          </div>
         </div>
 
         <div style={{ marginTop: 24, display: "flex", justifyContent: "space-between" }}>
           <Btn variant="secondary" onClick={onBack}>← Back</Btn>
-          <Btn onClick={cont}>Continue →</Btn>
+          <Btn onClick={cont} disabled={cohorts.length === 0 || elemCourses.length === 0}>Continue →</Btn>
         </div>
       </div>
     );

@@ -395,34 +395,189 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
   if (onProgress) onProgress("Building Course Sections...", 40);
 
   const sections: Section[] = [];
-  
-  // --- COHORT GENERATION (Elementary) ---
+
+  // Initialize cohort tracking in the resource tracker
+  cohorts.forEach(coh => tracker.initCohort(coh.id));
+
+  // --- COHORT-BASED SECTION GENERATION ---
+  // Triggered when cohorts are defined (elementary, MS teams, HS grade cohorts, etc.)
   if (cohorts && cohorts.length > 0) {
-    logger.info(`Generating sections for ${cohorts.length} cohorts...`);
-    cohorts.forEach(coh => {
-      // 1. Homeroom Section (Core)
-      sections.push({
-        id: `${coh.id}-HR`, courseId: `HR-${coh.gradeLevel}`, courseName: `Homeroom ${coh.name}`,
-        sectionNum: 1, maxSize: 30, enrollment: coh.studentCount,
-        department: `Grade ${coh.gradeLevel}`, gradeLevel: coh.gradeLevel, roomType: "regular",
-        isCore: true, teacher: coh.teacherId, teacherName: coh.teacherName,
-        room: null, period: null, locked: false
-      });
+    const schedType = config.scheduleType || "";
+    const isElemSelf = schedType === "elementary_self";
+    const isElemDept = schedType === "elementary_dept";
+    const isElem = isElemSelf || isElemDept || config.schoolType === "elementary" || config.schoolType === "k8";
 
-      // 2. Specials rotation — uses courses marked isSpecial, or all non-required courses
-      const specialsCourses = courses.filter(c => c.isSpecial) .length > 0
-        ? courses.filter(c => c.isSpecial)
-        : courses.filter(c => !c.required);
+    // Build effective course list — use user-provided courses or auto-generate defaults
+    let effectiveCourses = courses.length > 0 ? [...courses] : [];
 
-      specialsCourses.forEach(spec => {
-        sections.push({
-          id: `${coh.id}-${spec.id}`, courseId: spec.id, courseName: `${spec.name} - ${coh.name}`,
-          sectionNum: 1, maxSize: spec.maxSize || 30, enrollment: coh.studentCount,
-          department: spec.department, gradeLevel: coh.gradeLevel, roomType: spec.roomType || "regular",
-          isCore: false, teacher: null, room: null, period: null, isSingleton: true
+    if (effectiveCourses.length === 0 && isElem) {
+      // Auto-generate a standard elementary course set
+      effectiveCourses = [
+        { id: "math",    name: "Math",           department: "Math",           required: true,  isSpecial: false, roomType: "regular", maxSize: maxClassSize },
+        { id: "ela",     name: "ELA",            department: "ELA",            required: true,  isSpecial: false, roomType: "regular", maxSize: maxClassSize },
+        { id: "science", name: "Science",         department: "Science",        required: true,  isSpecial: false, roomType: "regular", maxSize: maxClassSize },
+        { id: "social",  name: "Social Studies",  department: "Social Studies", required: true,  isSpecial: false, roomType: "regular", maxSize: maxClassSize },
+        { id: "art",     name: "Art",             department: "Art",            required: false, isSpecial: true,  roomType: "regular", maxSize: maxClassSize },
+        { id: "music",   name: "Music",           department: "Music",          required: false, isSpecial: true,  roomType: "regular", maxSize: maxClassSize },
+        { id: "pe",      name: "PE",              department: "PE",             required: false, isSpecial: true,  roomType: "gym",     maxSize: maxClassSize * 2 },
+      ];
+      logger.info("Auto-generated default elementary courses (Math, ELA, Science, Social Studies + Art, Music, PE).");
+    }
+
+    // If no isSpecial flags are set, treat non-required as specials
+    const actualSpecials = effectiveCourses.some(c => c.isSpecial)
+      ? effectiveCourses.filter(c => c.isSpecial)
+      : effectiveCourses.filter(c => !c.required);
+    const actualCore = effectiveCourses.some(c => c.required)
+      ? effectiveCourses.filter(c => c.required)
+      : effectiveCourses.filter(c => !actualSpecials.includes(c));
+
+    logger.info(`Cohort-based generation: ${cohorts.length} cohorts, ${actualCore.length} core courses, ${actualSpecials.length} specials.`);
+
+    if (isElemSelf || (isElem && !isElemDept)) {
+      // ── SELF-CONTAINED ──
+      // Each cohort stays together. Homeroom teacher teaches all core subjects.
+      // Specials teachers rotate through each cohort (one section per cohort per special).
+      cohorts.forEach(coh => {
+        // Core subjects — homeroom teacher
+        actualCore.forEach((course, idx) => {
+          sections.push({
+            id: `${coh.id}-${course.id}`,
+            courseId: course.id,
+            courseName: `${course.name} - ${coh.name}`,
+            sectionNum: idx + 1,
+            maxSize: course.maxSize || maxClassSize,
+            enrollment: coh.studentCount,
+            department: course.department,
+            gradeLevel: coh.gradeLevel,
+            roomType: course.roomType || "regular",
+            isCore: true,
+            teacher: coh.teacherId || null,
+            teacherName: coh.teacherName,
+            cohortId: coh.id,
+            room: null, period: null, locked: false,
+          });
+        });
+
+        // Specials — rotate specials teachers; teacher assigned by dept in bulk loop below
+        actualSpecials.forEach((spec, idx) => {
+          sections.push({
+            id: `${coh.id}-${spec.id}`,
+            courseId: spec.id,
+            courseName: `${spec.name} - ${coh.name}`,
+            sectionNum: idx + 1,
+            maxSize: spec.maxSize || maxClassSize,
+            enrollment: coh.studentCount,
+            department: spec.department,
+            gradeLevel: coh.gradeLevel,
+            roomType: spec.roomType || "regular",
+            isCore: false,
+            teacher: null, // assigned by dept-matching in bulk loop
+            cohortId: coh.id,
+            room: null, period: null, isSingleton: true,
+          });
         });
       });
-    });
+
+    } else if (isElemDept) {
+      // ── DEPARTMENTALIZED ──
+      // Department teachers teach all cohorts at a specific grade level.
+      // Each cohort gets one section of each core subject (taught by dept teacher, not homeroom).
+      // Cohort conflict tracking prevents double-booking.
+      cohorts.forEach(coh => {
+        actualCore.forEach((course, idx) => {
+          // Only create section if grade level matches (or course is for all grades)
+          const gradeMatch = !course.gradeLevel || course.gradeLevel === "all" || course.gradeLevel === coh.gradeLevel;
+          if (!gradeMatch) return;
+          sections.push({
+            id: `${coh.id}-dept-${course.id}`,
+            courseId: course.id,
+            courseName: `${course.name} - ${coh.name}`,
+            sectionNum: idx + 1,
+            maxSize: course.maxSize || maxClassSize,
+            enrollment: coh.studentCount,
+            department: course.department,
+            gradeLevel: coh.gradeLevel,
+            roomType: course.roomType || "regular",
+            isCore: true,
+            teacher: null, // assigned by dept teacher in bulk loop
+            cohortId: coh.id,
+            room: null, period: null, locked: false,
+          });
+        });
+
+        // Specials still rotate
+        actualSpecials.forEach((spec, idx) => {
+          sections.push({
+            id: `${coh.id}-${spec.id}`,
+            courseId: spec.id,
+            courseName: `${spec.name} - ${coh.name}`,
+            sectionNum: idx + 1,
+            maxSize: spec.maxSize || maxClassSize,
+            enrollment: coh.studentCount,
+            department: spec.department,
+            gradeLevel: coh.gradeLevel,
+            roomType: spec.roomType || "regular",
+            isCore: false,
+            teacher: null,
+            cohortId: coh.id,
+            room: null, period: null, isSingleton: true,
+          });
+        });
+      });
+
+    } else {
+      // ── HS / MS COHORT MODE ──
+      // Courses tagged with gradeLevel get sections bound to matching cohorts.
+      // Courses without gradeLevel use standard generation (no cohort binding).
+      const cohortGrades = new Set(cohorts.map(c => c.gradeLevel));
+
+      effectiveCourses.forEach(course => {
+        const isCohortCourse = course.gradeLevel && cohortGrades.has(course.gradeLevel);
+        if (isCohortCourse) {
+          const matchingCohorts = cohorts.filter(c => c.gradeLevel === course.gradeLevel);
+          matchingCohorts.forEach((coh, idx) => {
+            sections.push({
+              id: `${coh.id}-${course.id}`,
+              courseId: course.id,
+              courseName: `${course.name} (${coh.name})`,
+              sectionNum: idx + 1,
+              maxSize: course.maxSize || maxClassSize,
+              enrollment: coh.studentCount,
+              department: course.department,
+              gradeLevel: coh.gradeLevel,
+              roomType: course.roomType || "regular",
+              isCore: !!course.required,
+              teacher: null,
+              cohortId: coh.id,
+              room: null, period: null,
+            });
+          });
+        } else {
+          // Non-cohort courses — standard section count
+          const num = course.sections || Math.ceil(studentCount / (course.maxSize || maxClassSize));
+          const enroll = Math.ceil(studentCount / Math.max(1, num));
+          for (let s = 0; s < num; s++) {
+            sections.push({
+              id: `${course.id}-S${s + 1}`,
+              courseId: course.id,
+              courseName: course.name,
+              sectionNum: s + 1,
+              maxSize: course.maxSize || maxClassSize,
+              enrollment: Math.min(enroll, course.maxSize || maxClassSize),
+              department: course.department,
+              gradeLevel: course.gradeLevel,
+              roomType: course.roomType || "regular",
+              isCore: !!course.required,
+              teacher: null, room: null, period: null,
+              isSingleton: num === 1,
+            });
+          }
+        }
+      });
+    }
+
+    logger.info(`Cohort generation complete: ${sections.length} sections created.`);
   } else {
     // --- STANDARD COURSE GENERATION ---
     const coreCourses = courses.filter(c => c.required);
@@ -532,7 +687,16 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
   } else if (config.scheduleType === "trimester") {
     logger.info("Engaging Trimester Strategy...");
     strategy = new TrimesterStrategy(tracker, config, logger, rng);
+  } else if (config.scheduleType === "elementary_self" || config.scheduleType === "elementary_dept") {
+    logger.info(`Engaging Elementary ${config.scheduleType === "elementary_self" ? "Self-Contained" : "Departmentalized"} Strategy (Standard + Cohort Tracking)...`);
+    strategy = new StandardStrategy(tracker, config, logger, rng);
+  } else if (config.scheduleType === "ms_team") {
+    logger.info("Engaging Team-Based Strategy (Standard + Cohort Tracking)...");
+    strategy = new StandardStrategy(tracker, config, logger, rng);
   } else {
+    if (config.scheduleType === "modified_block" || config.scheduleType === "rotating_drop") {
+      logger.warn(`Schedule type '${config.scheduleType}' is not yet fully implemented — using Standard strategy as base.`);
+    }
     logger.info("Engaging Standard Strategy Engine...");
     strategy = new StandardStrategy(tracker, config, logger, rng);
   }

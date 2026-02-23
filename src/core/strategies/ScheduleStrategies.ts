@@ -138,6 +138,7 @@ export abstract class BaseStrategy {
         if (!this.tracker.isTeacherAvailable(sec.teacher, slotId)) fails.push("Teacher booked");
         if (sec.coTeacher && !this.tracker.isTeacherAvailable(sec.coTeacher, slotId)) fails.push("Co-Teacher booked");
         if (!this.checkTravelTime(sec.teacher, slotId, periodList)) fails.push("Travel time violation");
+        if (sec.cohortId && !this.tracker.isCohortAvailable(sec.cohortId, slotId)) fails.push("Cohort conflict: group already scheduled this period");
 
         if (fails.length > 0) {
           periodEvaluations.push({ period: slotId, cost: Infinity, reasons: fails });
@@ -268,7 +269,7 @@ export abstract class BaseStrategy {
         // Temporarily remove victim from its current slot so the recursive call
         // sees realistic availability
         const victimOldTerm = getTermFromSlot(slot);
-        this.tracker.removePlacement(victim.id, slot, victim.teacher, victim.coTeacher, victim.room, victimOldTerm);
+        this.tracker.removePlacement(victim.id, slot, victim.teacher, victim.coTeacher, victim.room, victimOldTerm, victim.cohortId);
 
         const chainSuccess = this.backtrackChain(victim, victimSlots, sections, rooms, depth - 1, new Set(visited));
 
@@ -318,7 +319,7 @@ export abstract class BaseStrategy {
 
     this.logger.info(`Backtracking (depth ${BaseStrategy.MAX_BACKTRACK_DEPTH - depth + 1}): Bumping ${victim.courseName} from ${freedSlot} to ${victimNewSlot}`);
 
-    this.tracker.removePlacement(victim.id, freedSlot, victim.teacher, victim.coTeacher, victim.room, oldTerm);
+    this.tracker.removePlacement(victim.id, freedSlot, victim.teacher, victim.coTeacher, victim.room, oldTerm, victim.cohortId);
     this.tracker.assignPlacement(victim, victimNewSlot, victim.teacher, victim.coTeacher, victimNewRoom, newTerm);
     if (victimNewRoom) victim.roomName = rooms.find(r => r.id === victimNewRoom)?.name;
 

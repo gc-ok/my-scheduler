@@ -93,6 +93,9 @@ export interface Section {
   lunchWave?: number | null;
   term?: string;
   
+  // Cohort binding — if set, no two sections with the same cohortId can share a period
+  cohortId?: string;
+
   // State flags
   hasConflict?: boolean;
   conflictReason?: string;

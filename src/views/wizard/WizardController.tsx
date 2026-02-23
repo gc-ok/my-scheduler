@@ -91,7 +91,13 @@ export default function WizardController({ step, setStep, config, setConfig, onC
         {/* DYNAMIC ROUTING */}
         {step === 1 && <SchoolTypeStep config={config} setConfig={setConfig} onNext={() => setStep(2)} />}
         {step === 2 && <ScheduleStructureStep config={config} setConfig={setConfig} onNext={() => setStep(3)} onBack={() => setStep(1)} />}
-        {step === 3 && <ScheduleTypeStep config={config} setConfig={setConfig} onNext={() => setStep(4)} onBack={() => setStep(2)} />}
+        {step === 3 && (config.scheduleStructure === 'multiple' ? (
+          <MultiScheduleStepWrapper config={config} setConfig={setConfig}>
+            <ScheduleTypeStep config={config} setConfig={setConfig} onNext={() => setStep(4)} onBack={() => setStep(2)} />
+          </MultiScheduleStepWrapper>
+        ) : (
+          <ScheduleTypeStep config={config} setConfig={setConfig} onNext={() => setStep(4)} onBack={() => setStep(2)} />
+        ))}
         {step === 4 && (config.scheduleStructure === 'multiple' ? (
           <MultiScheduleStepWrapper config={config} setConfig={setConfig}>
             <BellScheduleStep config={config} setConfig={setConfig} onNext={() => setStep(5)} onBack={() => setStep(3)} />

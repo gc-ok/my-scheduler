@@ -245,7 +245,11 @@ interface ScheduleGridViewProps {
 
 export default function ScheduleGridView({ schedule, config, setSchedule, onRegenerate, onBackToConfig, onExport }: ScheduleGridViewProps) {
   const [vm, setVm] = useState("grid");
-  const [activeVariantId, setActiveVariantId] = useState<string>('default');
+  // Use the first variant's ID as the initial state so multi-variant schedules
+  // don't start on 'default' (which doesn't exist when structure === 'multiple').
+  const [activeVariantId, setActiveVariantId] = useState<string>(
+    () => schedule?.variantDefs?.[0]?.id || 'default'
+  );
   const [dragItem, setDI] = useState<Section | null>(null);
   const [fDept, setFD] = useState("all");
   const [filterTeacherId, setFilterTeacherId] = useState<string | null>(null);
@@ -254,20 +258,20 @@ export default function ScheduleGridView({ schedule, config, setSchedule, onRege
   const [notif, setNotif] = useState<{m: string, t: string} | null>(null);
   const [editSection, setEditSection] = useState<Section | null>(null);
   const [panelSection, setPanelSection] = useState<Section | null>(null);
-  
+
   // Modals' state
-  const [plcGroups, setPlcGroups] = useState<any[]>([]); 
-  const [teacherAvail, setTeacherAvail] = useState<any[]>([]); 
+  const [plcGroups, setPlcGroups] = useState<any[]>([]);
+  const [teacherAvail, setTeacherAvail] = useState<any[]>([]);
   const [showPLCModal, setShowPLCModal] = useState(false);
   const [availTeacher, setAvailTeacher] = useState<Teacher | null>(null);
-  const [editTeacher, setEditTeacher] = useState<Teacher | null>(null); 
+  const [editTeacher, setEditTeacher] = useState<Teacher | null>(null);
 
-  // Initialize active variant
+  // When the user switches variant tabs, reset undo/redo history so it stays
+  // isolated to the currently viewed variant.
   useEffect(() => {
-    if (schedule?.structure === 'multiple' && schedule.variantDefs.length > 0) {
-      setActiveVariantId(schedule.variantDefs[0].id);
-    }
-  }, [schedule]);
+    setHist([]);
+    setHI(-1);
+  }, [activeVariantId]);
 
   // Derived state based on active variant
   const activeVariant = schedule.variants[activeVariantId] || {};
@@ -311,12 +315,14 @@ export default function ScheduleGridView({ schedule, config, setSchedule, onRege
     setHist(h); setHI(h.length - 1); 
   };
 
-  useEffect(() => { 
-    // Initialize history when the active variant has loaded and history is empty
+  useEffect(() => {
+    // Seed undo history with the initial state of the variant when it first loads
     if (activeVariant && Object.keys(activeVariant).length > 0 && hist.length === 0) {
-      pushH(activeVariant as SingleScheduleResult);
+      const h = [JSON.parse(JSON.stringify(activeVariant))];
+      setHist(h);
+      setHI(0);
     }
-  }, [activeVariant, hist.length]);
+  }, [activeVariantId, activeVariant]); // re-runs when switching tabs (hist resets first via the tab-switch effect)
 
   const undo = () => { 
     if (hIdx > 0) { 

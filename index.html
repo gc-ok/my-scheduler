@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Free, open-source K-12 master scheduling tool. Build optimized school schedules in minutes with intelligent conflict resolution, bell schedule math, and PLC support." />
-    <title>K-12 Master Scheduler — Intelligent School Scheduling</title>
+    <meta name="description" content="Free, open-source K-12 master scheduling tool for elementary, middle, and high school. Self-contained cohorts, A/B Block, 4x4, Trimester, and more — built in your browser." />
+    <title>K-12 Master Scheduler — Elementary, Middle &amp; High School Scheduling</title>
     <style>
         :root {
             --primary: #1B4965;
@@ -276,40 +276,119 @@
             line-height: 1.6;
         }
 
+        /* ── SCHOOL LEVELS ── */
+        .levels-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 20px;
+            margin-bottom: 0;
+        }
+        .level-card {
+            background: var(--white);
+            border: 1px solid var(--light-gray);
+            border-radius: 12px;
+            padding: 28px 24px;
+            transition: box-shadow 0.2s, transform 0.15s;
+        }
+        .level-card:hover {
+            box-shadow: 0 4px 16px rgba(0,0,0,0.07);
+            transform: translateY(-2px);
+        }
+        .level-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+        .level-badge {
+            font-size: 24px;
+        }
+        .level-card h3 {
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        .level-card ul {
+            list-style: none;
+            padding: 0;
+        }
+        .level-card ul li {
+            font-size: 13.5px;
+            color: var(--text-light);
+            padding: 5px 0;
+            border-bottom: 1px solid var(--light-gray);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .level-card ul li:last-child { border-bottom: none; }
+        .level-card ul li::before {
+            content: "✓";
+            color: var(--accent);
+            font-weight: 700;
+            font-size: 13px;
+            flex-shrink: 0;
+        }
+
         /* ── SCHEDULE TYPES ── */
+        .types-group {
+            margin-bottom: 32px;
+        }
+        .types-group-label {
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--primary);
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--accent-light);
+        }
         .types-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-            gap: 16px;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 14px;
         }
         .type-card {
             background: var(--white);
             border: 1px solid var(--light-gray);
             border-radius: 10px;
-            padding: 22px 20px;
+            padding: 18px 18px;
             display: flex;
             align-items: flex-start;
-            gap: 14px;
+            gap: 12px;
         }
         .type-dot {
             width: 10px;
             height: 10px;
             border-radius: 50%;
             background: var(--accent);
-            margin-top: 6px;
+            margin-top: 5px;
             flex-shrink: 0;
         }
         .type-card h4 {
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 700;
             color: var(--text);
-            margin-bottom: 4px;
+            margin-bottom: 3px;
         }
         .type-card p {
-            font-size: 13px;
+            font-size: 12.5px;
             color: var(--text-light);
             line-height: 1.5;
         }
+        .type-tag {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            padding: 2px 7px;
+            border-radius: 4px;
+            margin-top: 5px;
+        }
+        .tag-full { background: #D1FAE5; color: #065F46; }
+        .tag-partial { background: #FEF3C7; color: #92400E; }
 
         /* ── CTA ── */
         .cta-section {
@@ -382,11 +461,11 @@
 
     <!-- Hero -->
     <section class="hero">
-        <div class="hero-badge">Free &amp; Open Source</div>
+        <div class="hero-badge">Free &amp; Open Source &mdash; Elementary · Middle · High School</div>
         <h1>Build Your Master Schedule<br/>in Minutes, Not Weeks</h1>
         <p>
-            An intelligent scheduling engine designed for K-12 administrators. Configure your bell schedule,
-            input your teachers and courses, and let the algorithm handle the rest — no spreadsheets required.
+            A full-spectrum K-12 scheduling engine — from self-contained elementary cohorts to high school block
+            schedules. Configure, generate, and fine-tune in your browser. No spreadsheets, no servers.
         </p>
         <div class="hero-actions">
             <a href="/app.html" class="btn-hero btn-hero-primary">Get Started Free &rarr;</a>
@@ -409,8 +488,8 @@
             <div class="stat-label">Guided Setup Steps</div>
         </div>
         <div class="stat">
-            <div class="stat-value">4</div>
-            <div class="stat-label">Schedule Types</div>
+            <div class="stat-value">8+</div>
+            <div class="stat-label">Schedule Models</div>
         </div>
     </div>
 
@@ -420,10 +499,20 @@
             <div class="section-label">Capabilities</div>
             <h2 class="section-title">Everything You Need to Build a Master Schedule</h2>
             <p class="section-desc">
-                From elementary to high school, handle the complexity of real-world scheduling
-                constraints without expensive enterprise software.
+                Handle the real complexity of K-12 scheduling — cohort groups, specials rotations, block
+                structures, and teacher constraints — without expensive enterprise software.
             </p>
             <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">&#128106;</div>
+                    <h3>Cohort-Based Scheduling</h3>
+                    <p>Bind student groups to sections so the engine never double-books a cohort. Works for elementary homerooms, 9th-grade cohorts, and middle school teams.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">&#127969;</div>
+                    <h3>Elementary Specials Rotation</h3>
+                    <p>Auto-generates Art, Music, and PE sections for every homeroom cohort, spreading specials across periods so room and teacher conflicts are impossible.</p>
+                </div>
                 <div class="feature-card">
                     <div class="feature-icon">&#128197;</div>
                     <h3>Smart Bell Schedule Math</h3>
@@ -480,7 +569,7 @@
                 <div class="step-item">
                     <div class="step-number">1</div>
                     <h3>Choose Your School</h3>
-                    <p>Select elementary, middle, high, K-8, or 6-12. The wizard adapts — showing recess options for elementary, block schedules for high school.</p>
+                    <p>Select elementary, middle, high, K-8, or 6-12. The wizard adapts — cohort setup for elementary, team-based for middle, blocks for high school.</p>
                 </div>
                 <div class="step-item">
                     <div class="step-number">2</div>
@@ -501,41 +590,165 @@
         </div>
     </section>
 
+    <!-- School Level Support -->
+    <section class="how-section">
+        <div class="section-inner">
+            <div class="section-label">School Levels</div>
+            <h2 class="section-title">Built for Every Level of K-12</h2>
+            <p class="section-desc">
+                Not just for high school. The engine adapts its logic, section generation, and constraint rules
+                based on what type of school you're scheduling.
+            </p>
+            <div class="levels-row">
+                <div class="level-card">
+                    <div class="level-header">
+                        <div class="level-badge">&#127968;</div>
+                        <h3>Elementary (K-5 / K-8)</h3>
+                    </div>
+                    <ul>
+                        <li>Self-Contained cohorts (homeroom teacher)</li>
+                        <li>Departmentalized model (grade-level teacher swap)</li>
+                        <li>Auto-generates Math, ELA, Science, Social Studies per cohort</li>
+                        <li>Specials rotation: Art, Music, PE for every homeroom</li>
+                        <li>Recess period scheduling</li>
+                        <li>WIN / intervention time support</li>
+                    </ul>
+                </div>
+                <div class="level-card">
+                    <div class="level-header">
+                        <div class="level-badge">&#127979;</div>
+                        <h3>Middle School (6-8)</h3>
+                    </div>
+                    <ul>
+                        <li>Traditional 6-7 period scheduling</li>
+                        <li>Team-based scheduling (interdisciplinary teams)</li>
+                        <li>Trimester course rotation</li>
+                        <li>PLC common planning by department or team</li>
+                        <li>WIN &amp; advisory period support</li>
+                        <li>Grade-level cohort tracking</li>
+                    </ul>
+                </div>
+                <div class="level-card">
+                    <div class="level-header">
+                        <div class="level-badge">&#127981;</div>
+                        <h3>High School (9-12)</h3>
+                    </div>
+                    <ul>
+                        <li>Traditional daily period scheduling</li>
+                        <li>A/B alternating block (4 blocks × 2 days)</li>
+                        <li>4x4 semester block (credit acceleration)</li>
+                        <li>Trimester / quarter model</li>
+                        <li>9th-grade cohort support</li>
+                        <li>Multi-variant schedules (A-day vs B-day configs)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- Schedule Types -->
     <section>
         <div class="section-inner">
             <div class="section-label">Supported Formats</div>
-            <h2 class="section-title">Four Schedule Types, One Tool</h2>
+            <h2 class="section-title">8+ Schedule Models, One Tool</h2>
             <p class="section-desc">
-                Whether your district uses traditional periods or block scheduling, the engine adapts.
+                Full engine support for core models, with additional types in active development.
             </p>
-            <div class="types-grid">
-                <div class="type-card">
-                    <div class="type-dot"></div>
-                    <div>
-                        <h4>Standard Daily</h4>
-                        <p>Traditional 6-8 period day. Same schedule every day of the week.</p>
+
+            <div class="types-group">
+                <div class="types-group-label">Elementary Models</div>
+                <div class="types-grid">
+                    <div class="type-card">
+                        <div class="type-dot" style="background:#10B981"></div>
+                        <div>
+                            <h4>Self-Contained</h4>
+                            <p>One homeroom teacher covers all core subjects for their cohort. Specials (Art, Music, PE) rotate separately.</p>
+                            <span class="type-tag tag-full">Full Engine Support</span>
+                        </div>
+                    </div>
+                    <div class="type-card">
+                        <div class="type-dot" style="background:#10B981"></div>
+                        <div>
+                            <h4>Departmentalized</h4>
+                            <p>Upper elementary teachers specialize by subject. Cohorts rotate to subject teachers, tracked for conflict-free placement.</p>
+                            <span class="type-tag tag-full">Full Engine Support</span>
+                        </div>
                     </div>
                 </div>
-                <div class="type-card">
-                    <div class="type-dot" style="background:#5FA8D3"></div>
-                    <div>
-                        <h4>A/B Block</h4>
-                        <p>Alternating day schedule with longer class periods. 4 blocks per day, 8 courses total.</p>
+            </div>
+
+            <div class="types-group">
+                <div class="types-group-label">Middle &amp; High School Models</div>
+                <div class="types-grid">
+                    <div class="type-card">
+                        <div class="type-dot"></div>
+                        <div>
+                            <h4>Standard Daily (Traditional)</h4>
+                            <p>6-8 equal periods every day. The most common US schedule structure.</p>
+                            <span class="type-tag tag-full">Full Engine Support</span>
+                        </div>
+                    </div>
+                    <div class="type-card">
+                        <div class="type-dot" style="background:#5FA8D3"></div>
+                        <div>
+                            <h4>A/B Alternating Block</h4>
+                            <p>4 long blocks alternate Day A / Day B. 8 unique courses per student, 90-min periods.</p>
+                            <span class="type-tag tag-full">Full Engine Support</span>
+                        </div>
+                    </div>
+                    <div class="type-card">
+                        <div class="type-dot" style="background:#F59E0B"></div>
+                        <div>
+                            <h4>4x4 Semester Block</h4>
+                            <p>4 courses per semester, full-year credit in one term. Popular for credit acceleration and CTE.</p>
+                            <span class="type-tag tag-full">Full Engine Support</span>
+                        </div>
+                    </div>
+                    <div class="type-card">
+                        <div class="type-dot" style="background:#7C3AED"></div>
+                        <div>
+                            <h4>Trimester</h4>
+                            <p>Three terms with course rotation. Common in middle schools and districts with career-tech programs.</p>
+                            <span class="type-tag tag-full">Full Engine Support</span>
+                        </div>
+                    </div>
+                    <div class="type-card">
+                        <div class="type-dot" style="background:#EC4899"></div>
+                        <div>
+                            <h4>Team-Based (Middle School)</h4>
+                            <p>Interdisciplinary teams share a student group. Teachers are co-assigned and rooms clustered.</p>
+                            <span class="type-tag tag-partial">In Development</span>
+                        </div>
                     </div>
                 </div>
-                <div class="type-card">
-                    <div class="type-dot" style="background:#F59E0B"></div>
-                    <div>
-                        <h4>4x4 Block</h4>
-                        <p>Four courses per semester, full-year content in one term. Popular for credit acceleration.</p>
+            </div>
+
+            <div class="types-group">
+                <div class="types-group-label">Multi-Day / Hybrid Variants</div>
+                <div class="types-grid">
+                    <div class="type-card">
+                        <div class="type-dot" style="background:#6366F1"></div>
+                        <div>
+                            <h4>Modified Block</h4>
+                            <p>Hybrid of daily periods and block periods on certain days (e.g., 4 skinny + 2 block per week).</p>
+                            <span class="type-tag tag-partial">In Development</span>
+                        </div>
                     </div>
-                </div>
-                <div class="type-card">
-                    <div class="type-dot" style="background:#7C3AED"></div>
-                    <div>
-                        <h4>Trimester</h4>
-                        <p>Three terms per year with course rotation. Common in middle schools and career-tech programs.</p>
+                    <div class="type-card">
+                        <div class="type-dot" style="background:#6366F1"></div>
+                        <div>
+                            <h4>Rotating Drop</h4>
+                            <p>7-period bank where only 6 meet each day, rotating which period drops. Balances instructional time.</p>
+                            <span class="type-tag tag-partial">In Development</span>
+                        </div>
+                    </div>
+                    <div class="type-card">
+                        <div class="type-dot" style="background:#14B8A6"></div>
+                        <div>
+                            <h4>Multiple Variant Schedule</h4>
+                            <p>Define distinct configs for different day types (A-day, B-day, Wednesday) in one project.</p>
+                            <span class="type-tag tag-full">Full Engine Support</span>
+                        </div>
                     </div>
                 </div>
             </div>
