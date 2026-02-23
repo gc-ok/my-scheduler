@@ -1,8 +1,8 @@
 // src/utils/scheduleConfig.ts
 // Bridges WizardState (flat UI fields) → EngineConfig (resolved, nested)
-import { WizardState, EngineConfig } from '../types';
+import { WizardState, EngineConfig, ScheduleVariantDef } from '../types';
 
-export function buildScheduleConfig(config: WizardState): EngineConfig {
+function buildSingleConfig(config: Partial<WizardState>): EngineConfig {
   const pc = config.periodsCount || 7;
   const periodsConfig = (Array.isArray(config.periods) && config.periods.length > 0) ? config.periods : [];
 
@@ -50,5 +50,36 @@ export function buildScheduleConfig(config: WizardState): EngineConfig {
     studentCount: config.studentCount || 800,
     maxClassSize: config.maxClassSize || 30,
     planPeriodsPerDay: config.planPeriodsPerDay ?? 1,
+  };
+}
+
+
+export function buildScheduleConfig(config: WizardState): {
+  structure: 'single' | 'multiple',
+  variantDefs: ScheduleVariantDef[],
+  configs: Record<string, EngineConfig>
+} {
+  if (config.scheduleStructure === 'multiple' && config.scheduleVariantDefs && config.variantConfigs) {
+    const multiConfigs: Record<string, EngineConfig> = {};
+    for (const variantDef of config.scheduleVariantDefs) {
+      const variantSpecificConfig = config.variantConfigs[variantDef.id] || {};
+      const mergedConfig = { ...config, ...variantSpecificConfig };
+      multiConfigs[variantDef.id] = buildSingleConfig(mergedConfig);
+    }
+    return {
+      structure: 'multiple',
+      variantDefs: config.scheduleVariantDefs,
+      configs: multiConfigs,
+    };
+  }
+
+  // Default to single structure
+  const singleVariantDef = { id: 'default', name: 'Default', assignedDays: [1,2,3,4,5]};
+  return {
+    structure: 'single',
+    variantDefs: [singleVariantDef],
+    configs: {
+      'default': buildSingleConfig(config)
+    }
   };
 }

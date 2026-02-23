@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { COLORS } from "../../utils/theme";
 import { Period, Section, Teacher } from "../../types";
 
@@ -9,13 +9,52 @@ const getDeptColor = (deptName: string) => {
   return `hsl(${hue}, 70%, 45%)`;
 };
 
-export const PeriodHeader = ({ p, isLast }: { p: Period; isLast: boolean }) => {
+const to24hr = (time12h: string) => {
+  const [time, modifier] = time12h.split(' ');
+  let [hours, minutes] = time.split(':');
+  if (hours === '12') hours = '00';
+  if (modifier === 'PM') hours = String(parseInt(hours, 10) + 12);
+  return `${hours.padStart(2, '0')}:${minutes}`;
+};
+
+const InlineTimeEdit = ({ value, onChange }: { value: string, onChange: (v: string) => void }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [time, setTime] = useState(to24hr(value));
+
+  useEffect(() => {
+    setTime(to24hr(value));
+  }, [value]);
+
+  const handleBlur = () => {
+    setIsEditing(false);
+    onChange(time);
+  };
+
+  if (isEditing) {
+    return <input type="time" value={time} onChange={e => setTime(e.target.value)} onBlur={handleBlur} autoFocus style={{ width: "60px", border: "none", background: "rgba(255,255,255,0.2)", color: "white", padding: 2, borderRadius: 4 }} />;
+  }
+  return <span onClick={() => setIsEditing(true)} style={{ cursor: "pointer" }}>{value}</span>;
+};
+
+
+export const PeriodHeader = ({ p, isLast, onTimeChange }: { p: Period; isLast: boolean, onTimeChange?: (id: string | number, part: 'start' | 'end', value: string) => void }) => {
   const bgMap: Record<string, string> = { class: COLORS.primary, split_lunch: COLORS.secondary, multi_lunch: COLORS.secondary, unit_lunch: COLORS.warning, win: COLORS.darkGray, recess: COLORS.success };
-  const safeType = p.type || "class"; // Prevent .replace() crash
+  const safeType = p.type || "class";
+
   return (
     <div style={{ padding: "6px 4px", textAlign: "center", fontWeight: 700, fontSize: 11, color: COLORS.white, borderRadius: isLast ? "0 8px 0 0" : 0, background: bgMap[safeType] || COLORS.primary, display: "flex", flexDirection: "column", justifyContent: "center", minHeight: 54 }}>
       <div>{p.label}</div>
-      <div style={{ fontSize: 9, fontWeight: 500, opacity: 0.9, marginTop: 2 }}>{p.startTime} – {p.endTime}</div>
+      <div style={{ fontSize: 9, fontWeight: 500, opacity: 0.9, marginTop: 2 }}>
+        {onTimeChange ? (
+          <>
+            <InlineTimeEdit value={p.startTime} onChange={(v) => onTimeChange(p.id, 'start', v)} />
+            {' – '}
+            <InlineTimeEdit value={p.endTime} onChange={(v) => onTimeChange(p.id, 'end', v)} />
+          </>
+        ) : (
+          `${p.startTime} – ${p.endTime}`
+        )}
+      </div>
       {safeType !== "class" && <div style={{ fontSize: 8, opacity: 0.8, textTransform: "uppercase", marginTop: 1 }}>{safeType.replace("_", " ")}</div>}
     </div>
   );
@@ -28,9 +67,10 @@ interface TeacherGridProps {
   setEditSection?: (section: any) => void;
   onTeacherClick?: (teacher: Teacher) => void;
   onEditTeacher?: (teacher: Teacher) => void;
+  filterTeacherId?: string | null;
 }
 
-export default function TeacherGrid({ schedule, config, fDept, setEditSection, onTeacherClick, onEditTeacher }: TeacherGridProps) {
+export default function TeacherGrid({ schedule, config, fDept, setEditSection, onTeacherClick, onEditTeacher, filterTeacherId }: TeacherGridProps) {
   const { periodList: allP = [], teachers = [], sections: secs = [], teacherSchedule = {} } = schedule;
   const numWaves = Number(config?.lunchConfig?.numWaves) || 3; // Enforce Number type to prevent Array.from crash
   
@@ -57,6 +97,14 @@ export default function TeacherGrid({ schedule, config, fDept, setEditSection, o
   if (config?.scheduleType === "ab_block") terms = ["A", "B"];
   if (config?.scheduleType === "4x4_block") terms = ["S1", "S2"];
   if (config?.scheduleType === "trimester") terms = ["T1", "T2", "T3"];
+
+  const filteredTeachers = useMemo(() => {
+    return teachers.filter((t: Teacher) => {
+      const deptMatch = fDept === "all" || (t.departments || []).includes(fDept);
+      const teacherIdMatch = !filterTeacherId || t.id === filterTeacherId;
+      return deptMatch && teacherIdMatch;
+    });
+  }, [teachers, fDept, filterTeacherId]);
 
   const RenderCell = ({ s, status, p, t, dayLabel, termCount }: { s?: Section; status: string; p: Period; t: Teacher; dayLabel: string; termCount: number }) => {
     const isLunch = status === "LUNCH";
@@ -116,7 +164,7 @@ export default function TeacherGrid({ schedule, config, fDept, setEditSection, o
         <div style={{ padding: 8, background: COLORS.primary, color: COLORS.white, fontWeight: 700, borderRadius: "8px 0 0 0", fontSize: 12 }}>Teacher</div>
         {allP.map((p: Period, i: number) => <PeriodHeader key={p.id} p={p} isLast={i === allP.length - 1} />)}
         
-        {teachers.filter((t: Teacher) => fDept === "all" || (t.departments || []).includes(fDept)).map((t: Teacher) => (
+        {filteredTeachers.map((t: Teacher) => (
           <React.Fragment key={t.id}>
             <div style={{ padding: "6px 8px", background: COLORS.offWhite, borderBottom: `1px solid ${COLORS.lightGray}`, fontSize: 12, fontWeight: 600, color: COLORS.text, display: "flex", flexDirection: "column", justifyContent: "center" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>

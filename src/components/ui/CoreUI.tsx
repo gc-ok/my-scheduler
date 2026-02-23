@@ -184,3 +184,5 @@ export const Tabs: React.FC<TabsProps> = ({ tabs, active, onChange }) => (
     ))}
   </div>
 );
+
+export { ContextualSidePanel } from './ContextualSidePanel';

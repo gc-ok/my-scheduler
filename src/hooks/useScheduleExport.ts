@@ -1,8 +1,23 @@
-import { ScheduleResult, Section } from "../types";
+import { ScheduleResult, Section, SingleScheduleResult } from "../types";
 
 export function useScheduleExport(schedule: ScheduleResult | null) {
   const exportCSV = () => {
-    if (!schedule?.sections) return;
+    if (!schedule) return;
+
+    let sections: Section[] = [];
+    if (schedule.structure === 'single') {
+      sections = schedule.variants['default']?.sections || [];
+    } else {
+      const firstVariantId = schedule.variantDefs?.[0]?.id;
+      if (firstVariantId) {
+        sections = schedule.variants[firstVariantId]?.sections || [];
+      }
+    }
+
+    if (sections.length === 0) {
+      alert("No sections found to export.");
+      return;
+    }
 
     const headers = [
       "Course ID", "Course Name", "Section ID", "Section Number",
@@ -13,7 +28,7 @@ export function useScheduleExport(schedule: ScheduleResult | null) {
     const safe = (val: string | number | null | undefined) =>
       `"${String(val || '').replace(/"/g, '""')}"`;
 
-    const rows = schedule.sections.map((s: Section) => [
+    const rows = sections.map((s: Section) => [
       safe(s.courseId), safe(s.courseName), safe(s.id), s.sectionNum,
       safe(s.teacher), safe(s.teacherName), safe(s.room), safe(s.period),
       s.term || "FY", s.enrollment, s.maxSize

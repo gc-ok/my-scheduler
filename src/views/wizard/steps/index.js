@@ -10,3 +10,5 @@ export { DataInputStep } from "./DataInputStep.jsx";
 export { GenericInputStep } from "./GenericInputStep.jsx";
 export { CSVUploadStep } from "./CSVUploadStep.jsx";
 export { ConstraintsStep } from "./ConstraintsStep.jsx";
+export { ScheduleStructureStep } from "./ScheduleStructureStep";
+export { MultiScheduleStepWrapper } from "./MultiScheduleStepWrapper";

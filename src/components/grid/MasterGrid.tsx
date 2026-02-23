@@ -17,9 +17,10 @@ interface SecCardProps {
   onDragStart: (s: Section) => void;
   togLock: (id: string) => void;
   setEditSection: (s: Section) => void;
+  onConflictClick: (s: Section) => void;
 }
 
-export const SecCard = ({ section: s, dragItem, onDragStart, togLock, setEditSection }: SecCardProps) => {
+export const SecCard = ({ section: s, dragItem, onDragStart, togLock, setEditSection, onConflictClick }: SecCardProps) => {
   const deptColor = getDeptColor(s.department);
   const bg = s.hasConflict ? "#FFF0F0" : `${deptColor}15`; 
   const borderLeftColor = s.hasConflict ? COLORS.danger : deptColor;
@@ -41,7 +42,7 @@ export const SecCard = ({ section: s, dragItem, onDragStart, togLock, setEditSec
           {s.isSingleton && <span title="Singleton Section" style={{ fontSize: 8, cursor: "help" }}>1️⃣</span>}
           {dayBadge && <span style={{ fontSize: 7, background: COLORS.darkGray, color: COLORS.white, padding: "1px 3px", borderRadius: 3, marginRight: 2 }}>{dayBadge}</span>}
           {s.lunchWave && <span style={{ fontSize: 7, background: COLORS.warning, color: COLORS.text, padding: "1px 3px", borderRadius: 3 }}>W{s.lunchWave}</span>}
-          {s.hasConflict && <span title={s.conflictReason} style={{ cursor: "help" }}>⚠️</span>}
+          {s.hasConflict && <button onClick={(e) => { e.stopPropagation(); onConflictClick(s); }} title={s.conflictReason} style={{ cursor: "help", background: 'none', border: 'none', padding: 0, margin: 0, fontSize: 'inherit' }}>⚠️</button>}
           <span onClick={e => { e.stopPropagation(); togLock(s.id); }} style={{ cursor: "pointer", fontSize: 9, marginLeft: 2 }}>{s.locked ? "🔒" : "🔓"}</span>
         </div>
       </div>
@@ -60,9 +61,11 @@ interface MasterGridProps {
   onDrop: (pid: string | number) => void;
   togLock: (id: string) => void;
   setEditSection: (s: Section) => void;
+  onPeriodTimeChange: (id: string | number, part: 'start' | 'end', value: string) => void;
+  onConflictClick: (s: Section) => void;
 }
 
-export default function MasterGrid({ schedule, config, fSecs, dragItem, onDragStart, onDrop, togLock, setEditSection }: MasterGridProps) {
+export default function MasterGrid({ schedule, config, fSecs, dragItem, onDragStart, onDrop, togLock, setEditSection, onPeriodTimeChange }: MasterGridProps) {
   const { periodList: allP = [], periodStudentData: psd = {}, stats } = schedule;
   const studentCount = stats?.totalStudents || 0;
 
@@ -109,7 +112,7 @@ export default function MasterGrid({ schedule, config, fSecs, dragItem, onDragSt
       <div style={{ display: "grid", gridTemplateColumns: `130px repeat(${allP.length}, minmax(130px, 1fr))`, gap: 0, minWidth: 130 + allP.length * 130 }}>
         
         <div style={{ padding: 8, background: COLORS.primaryDark, color: COLORS.white, fontWeight: 700, fontSize: 12, borderRadius: "8px 0 0 0", display: "flex", alignItems: "center" }}>Course / Period</div>
-        {allP.map((p: Period, i: number) => <PeriodHeader key={p.id} p={p} isLast={i === allP.length - 1} />)}
+        {allP.map((p: Period, i: number) => <PeriodHeader key={p.id} p={p} isLast={i === allP.length - 1} onTimeChange={onPeriodTimeChange} />)}
 
         <div style={{ padding: "4px 8px", background: COLORS.offWhite, borderBottom: `2px solid ${COLORS.primary}`, borderRight: `1px solid ${COLORS.lightGray}`, fontSize: 10, fontWeight: 700, color: COLORS.primary, display: "flex", alignItems: "center" }}>
           👥 {studentCount} Students
@@ -152,7 +155,7 @@ export default function MasterGrid({ schedule, config, fSecs, dragItem, onDragSt
                 
                 return (
                   <div key={`${cid}-${p.id}`} onDragOver={e => !isNT && e.preventDefault()} onDrop={() => !isNT && onDrop(p.id)} style={{ padding: 3, minHeight: 44, borderBottom: `1px solid ${COLORS.lightGray}`, borderRight: `1px solid ${COLORS.lightGray}`, background: isNT ? "#F0F0F0" : dragItem ? `${COLORS.accentLight}30` : COLORS.white }}>
-                    {ps.map(s => <SecCard key={s.id} section={s} dragItem={dragItem} onDragStart={onDragStart} togLock={togLock} setEditSection={setEditSection} />)}
+                    {ps.map(s => <SecCard key={s.id} section={s} dragItem={dragItem} onDragStart={onDragStart} togLock={togLock} setEditSection={setEditSection} onConflictClick={onConflictClick} />)}
                   </div>
                 );
               })}

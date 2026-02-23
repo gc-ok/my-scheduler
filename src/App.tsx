@@ -47,8 +47,8 @@ export default function App() {
     setSchedule(null);
   }, [declineRestore]);
 
-  const regen = useCallback(() => {
-    if (schedule) regenerate(schedule);
+  const regen = useCallback((activeVariantId = 'default') => {
+    if (schedule) regenerate(schedule, activeVariantId);
   }, [schedule, regenerate]);
 
   const ErrorModal = () => (
@@ -102,6 +102,9 @@ export default function App() {
   }
 
   if (step === 99 && schedule) {
+    const firstVariantId = schedule.variantDefs?.[0]?.id || 'default';
+    const firstVariant = schedule.variants[firstVariantId];
+
     return (
       <div className={css.root}>
         {errorState && <ErrorModal />}
@@ -109,11 +112,11 @@ export default function App() {
           <div className={css.scheduleHeaderLeft}>
             <Logo size={30} />
             <div className={css.scheduleHeaderInfo}>
-              {config.schoolType} · {config.scheduleType?.replace(/_/g, " ")} · {config.periodsCount || 7} periods
+              {config.schoolType} · {config.scheduleType?.replace(/_/g, " ")} · {firstVariant?.periods?.length || config.periodsCount || 7} periods
             </div>
           </div>
           <div className={css.scheduleHeaderStats}>
-            {schedule.stats?.scheduledCount}/{schedule.stats?.totalSections} scheduled · {schedule.stats?.conflictCount} conflicts
+            {firstVariant?.stats?.scheduledCount}/{firstVariant?.stats?.totalSections} scheduled · {firstVariant?.stats?.conflictCount} conflicts
           </div>
         </div>
         <ErrorBoundary>

@@ -1,5 +1,7 @@
 // src/views/wizard/steps/index.ts
+export { MultiScheduleStepWrapper } from "./MultiScheduleStepWrapper";
 export { SchoolTypeStep } from "./SchoolTypeStep";
+export { ScheduleStructureStep } from "./ScheduleStructureStep";
 export { ScheduleTypeStep } from "./ScheduleTypeStep";
 export { BellScheduleStep } from "./BellScheduleStep";
 export { LunchStep } from "./LunchStep";

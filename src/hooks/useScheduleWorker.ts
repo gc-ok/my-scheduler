@@ -26,7 +26,7 @@ export function useScheduleWorker(
     workerRef.current = new Worker(new URL('../core/worker.ts', import.meta.url), { type: 'module' });
 
     workerRef.current.onmessage = (e) => {
-      const { status, data, error, message, percentage } = e.data;
+      const { status, data, error, message, percentage, variantId } = e.data;
 
       if (status === 'PROGRESS') {
         setState(prev => ({ ...prev, genProgress: { msg: message, pct: percentage } }));
@@ -38,6 +38,19 @@ export function useScheduleWorker(
         saveToDB("schedule", data);
         setSchedule(data);
         setStep(99);
+      } else if (status === 'VARIANT_SUCCESS') {
+        setSchedule((prevSchedule) => {
+          if (!prevSchedule) return null;
+          const newSchedule = {
+            ...prevSchedule,
+            variants: {
+              ...prevSchedule.variants,
+              [variantId]: data,
+            }
+          };
+          saveToDB("schedule", newSchedule);
+          return newSchedule;
+        });
       } else {
         console.error("Scheduling Engine Error:", error);
         setState(prev => ({
@@ -62,21 +75,41 @@ export function useScheduleWorker(
     }
 
     setState(prev => ({ ...prev, isGenerating: true, genProgress: { msg: "Initializing...", pct: 0 } }));
-    const finalConfig = buildScheduleConfig(config);
-    workerRef.current?.postMessage({ action: 'GENERATE', config: finalConfig });
+    const configPayload = buildScheduleConfig(config);
+    workerRef.current?.postMessage({ action: 'GENERATE', configPayload });
   };
 
-  const regenerate = (schedule: ScheduleResult) => {
+  const regenerate = (schedule: ScheduleResult, activeVariantId = 'default') => {
     setState(prev => ({ ...prev, isGenerating: true, genProgress: { msg: "Refactoring...", pct: 0 } }));
 
-    const lockedSections = schedule.sections.filter((s: Section) => s.locked);
-    const manualSections = schedule.sections.filter((s: Section) => s.isManual && !s.locked);
-    const sizeOverrides = schedule.sections
+    const activeVariant = schedule.variants[activeVariantId];
+    if (!activeVariant) {
+      console.error("Could not find active variant in schedule to regenerate.");
+      setState(prev => ({...prev, isGenerating: false}));
+      return;
+    }
+
+    const lockedSections = activeVariant.sections.filter((s: Section) => s.locked);
+    const manualSections = activeVariant.sections.filter((s: Section) => s.isManual && !s.locked);
+    const sizeOverrides = activeVariant.sections
       .filter((s: Section) => s.enrollment !== s.maxSize && !s.isManual)
       .map((s: Section) => ({ sectionId: s.id, enrollment: s.enrollment }));
 
-    const regenConfig = { ...buildScheduleConfig(config), lockedSections, manualSections };
-    workerRef.current?.postMessage({ action: 'GENERATE_WITH_OVERRIDES', config: regenConfig, sizeOverrides });
+    // Rebuild the config payload, but only for the single variant we are regenerating
+    const fullPayload = buildScheduleConfig(config);
+    const regenTargetConfig = fullPayload.configs[activeVariantId];
+    
+    const singleVariantDef = schedule.variantDefs.find(v => v.id === activeVariantId) || { id: 'default', name: 'Default', assignedDays: []};
+
+    const regenPayload = {
+      structure: 'single',
+      variantDefs: [singleVariantDef],
+      configs: {
+        'default': { ...regenTargetConfig, lockedSections, manualSections }
+      }
+    };
+
+    workerRef.current?.postMessage({ action: 'GENERATE_WITH_OVERRIDES', configPayload: regenPayload, sizeOverrides, targetVariantId: activeVariantId });
   };
 
   const clearError = () => setState(prev => ({ ...prev, errorState: null }));

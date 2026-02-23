@@ -3,7 +3,8 @@ import { COLORS } from "../../utils/theme";
 import { Logo, Btn, Card } from "../../components/ui/CoreUI";
 
 import {
-  SchoolTypeStep, ScheduleTypeStep, BellScheduleStep, LunchStep,
+  MultiScheduleStepWrapper,
+  SchoolTypeStep, ScheduleStructureStep, ScheduleTypeStep, BellScheduleStep, LunchStep,
   PlanPLCStep, WINTimeStep, RecessStep, DataInputStep, GenericInputStep,
   CSVUploadStep, ConstraintsStep
 } from "./steps";
@@ -23,12 +24,12 @@ export default function WizardController({ step, setStep, config, setConfig, onC
   const showRecess = !["high", "6_12"].includes(config.schoolType || "");
 
   const allSteps = [
-    { id: 1, label: "School Type" }, { id: 2, label: "Schedule Type" }, { id: 3, label: "Bell Schedule" },
-    { id: 4, label: "Lunch" }, { id: 5, label: "Plan & PLC" }, { id: 6, label: "WIN Time" },
-    ...(showRecess ? [{ id: 7, label: "Recess" }] : []),
-    { id: 8, label: "Data Input" },
-    { id: 9, label: config.inputMode === "csv" ? "CSV Upload" : (config.schoolType === "elementary" || config.schoolType === "k8" ? "Cohort Setup" : "Quick Setup") },
-    { id: 10, label: "Constraints" }
+    { id: 1, label: "School Type" }, { id: 2, label: "Schedule Structure" }, { id: 3, label: "Schedule Type" }, { id: 4, label: "Bell Schedule" },
+    { id: 5, label: "Lunch" }, { id: 6, label: "Plan & PLC" }, { id: 7, label: "WIN Time" },
+    ...(showRecess ? [{ id: 8, label: "Recess" }] : []),
+    { id: 9, label: "Data Input" },
+    { id: 10, label: config.inputMode === "csv" ? "CSV Upload" : (config.schoolType === "elementary" || config.schoolType === "k8" ? "Cohort Setup" : "Quick Setup") },
+    { id: 11, label: "Constraints" }
   ];
 
   return (
@@ -89,16 +90,47 @@ export default function WizardController({ step, setStep, config, setConfig, onC
 
         {/* DYNAMIC ROUTING */}
         {step === 1 && <SchoolTypeStep config={config} setConfig={setConfig} onNext={() => setStep(2)} />}
-        {step === 2 && <ScheduleTypeStep config={config} setConfig={setConfig} onNext={() => setStep(3)} onBack={() => setStep(1)} />}
-        {step === 3 && <BellScheduleStep config={config} setConfig={setConfig} onNext={() => setStep(4)} onBack={() => setStep(2)} />}
-        {step === 4 && <LunchStep config={config} setConfig={setConfig} onNext={() => setStep(5)} onBack={() => setStep(3)} />}
-        {step === 5 && <PlanPLCStep config={config} setConfig={setConfig} onNext={() => setStep(6)} onBack={() => setStep(4)} />}
-        {step === 6 && <WINTimeStep config={config} setConfig={setConfig} onNext={() => setStep(showRecess ? 7 : 8)} onBack={() => setStep(5)} />}
-        {step === 7 && showRecess && <RecessStep config={config} setConfig={setConfig} onNext={() => setStep(8)} onBack={() => setStep(6)} />}
-        {step === 8 && <DataInputStep config={config} setConfig={setConfig} onNext={() => setStep(9)} onBack={() => setStep(showRecess ? 7 : 6)} />}
-        {step === 9 && config.inputMode === "csv" && <CSVUploadStep config={config} setConfig={setConfig} onNext={() => setStep(10)} onBack={() => setStep(8)} />}
-        {step === 9 && config.inputMode !== "csv" && <GenericInputStep config={config} setConfig={setConfig} onNext={() => setStep(10)} onBack={() => setStep(8)} />}
-        {step === 10 && <ConstraintsStep config={config} setConfig={setConfig} onNext={onComplete} onBack={() => setStep(9)} />}
+        {step === 2 && <ScheduleStructureStep config={config} setConfig={setConfig} onNext={() => setStep(3)} onBack={() => setStep(1)} />}
+        {step === 3 && <ScheduleTypeStep config={config} setConfig={setConfig} onNext={() => setStep(4)} onBack={() => setStep(2)} />}
+        {step === 4 && (config.scheduleStructure === 'multiple' ? (
+          <MultiScheduleStepWrapper config={config} setConfig={setConfig}>
+            <BellScheduleStep config={config} setConfig={setConfig} onNext={() => setStep(5)} onBack={() => setStep(3)} />
+          </MultiScheduleStepWrapper>
+        ) : (
+          <BellScheduleStep config={config} setConfig={setConfig} onNext={() => setStep(5)} onBack={() => setStep(3)} />
+        ))}
+        {step === 5 && (config.scheduleStructure === 'multiple' ? (
+          <MultiScheduleStepWrapper config={config} setConfig={setConfig}>
+            <LunchStep config={config} setConfig={setConfig} onNext={() => setStep(6)} onBack={() => setStep(4)} />
+          </MultiScheduleStepWrapper>
+        ) : (
+          <LunchStep config={config} setConfig={setConfig} onNext={() => setStep(6)} onBack={() => setStep(4)} />
+        ))}
+        {step === 6 && (config.scheduleStructure === 'multiple' ? (
+          <MultiScheduleStepWrapper config={config} setConfig={setConfig}>
+            <PlanPLCStep config={config} setConfig={setConfig} onNext={() => setStep(7)} onBack={() => setStep(5)} />
+          </MultiScheduleStepWrapper>
+        ) : (
+          <PlanPLCStep config={config} setConfig={setConfig} onNext={() => setStep(7)} onBack={() => setStep(5)} />
+        ))}
+        {step === 7 && (config.scheduleStructure === 'multiple' ? (
+          <MultiScheduleStepWrapper config={config} setConfig={setConfig}>
+            <WINTimeStep config={config} setConfig={setConfig} onNext={() => setStep(showRecess ? 8 : 9)} onBack={() => setStep(6)} />
+          </MultiScheduleStepWrapper>
+        ) : (
+          <WINTimeStep config={config} setConfig={setConfig} onNext={() => setStep(showRecess ? 8 : 9)} onBack={() => setStep(6)} />
+        ))}
+        {step === 8 && showRecess && (config.scheduleStructure === 'multiple' ? (
+          <MultiScheduleStepWrapper config={config} setConfig={setConfig}>
+            <RecessStep config={config} setConfig={setConfig} onNext={() => setStep(9)} onBack={() => setStep(7)} />
+          </MultiScheduleStepWrapper>
+        ) : (
+          <RecessStep config={config} setConfig={setConfig} onNext={() => setStep(9)} onBack={() => setStep(7)} />
+        ))}
+        {step === 9 && <DataInputStep config={config} setConfig={setConfig} onNext={() => setStep(10)} onBack={() => setStep(showRecess ? 8 : 7)} />}
+        {step === 10 && config.inputMode === "csv" && <CSVUploadStep config={config} setConfig={setConfig} onNext={() => setStep(11)} onBack={() => setStep(9)} />}
+        {step === 10 && config.inputMode !== "csv" && <GenericInputStep config={config} setConfig={setConfig} onNext={() => setStep(11)} onBack={() => setStep(9)} />}
+        {step === 11 && <ConstraintsStep config={config} setConfig={setConfig} onNext={onComplete} onBack={() => setStep(10)} />}
       </div>
     </>
   );

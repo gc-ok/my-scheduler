@@ -1,32 +1,97 @@
 import { generateSchedule } from './engine';
-import { EngineConfig, Section } from '../types';
+import { EngineConfig, Section, ScheduleVariantDef, SingleScheduleResult, ScheduleResult } from '../types';
 
-self.onmessage = (e: MessageEvent<{ 
-  action: 'GENERATE' | 'GENERATE_WITH_OVERRIDES', 
-  config: EngineConfig, 
-  sizeOverrides?: { sectionId: string, enrollment: number }[] 
-}>) => {
-  const { action, config, sizeOverrides } = e.data;
+type WorkerPayload = {
+  action: 'GENERATE' | 'GENERATE_WITH_OVERRIDES';
+  configPayload: {
+    structure: 'single' | 'multiple';
+    variantDefs: ScheduleVariantDef[];
+    configs: Record<string, EngineConfig>;
+  };
+  sizeOverrides?: { sectionId: string; enrollment: number }[];
+  targetVariantId?: string; // New: For targeted regeneration
+};
+
+self.onmessage = (e: MessageEvent<WorkerPayload>) => {
+  const { action, configPayload, sizeOverrides, targetVariantId } = e.data;
 
   try {
-    // 1. Run the heavy scheduling algorithm with progress reporting
-    const result = generateSchedule(config, (msg, pct) => {
-      self.postMessage({ status: 'PROGRESS', message: msg, percentage: pct });
-    });
+    const { structure, variantDefs, configs } = configPayload;
 
-    // 2. Apply size overrides if this was a regeneration request
-    if (action === 'GENERATE_WITH_OVERRIDES' && sizeOverrides && sizeOverrides.length > 0) {
-      result.sections = result.sections.map((sec: Section) => {
-        const override = sizeOverrides.find((o) => o.sectionId === sec.id);
-        if (override) return { ...sec, enrollment: override.enrollment };
-        return sec;
+    // Handle targeted regeneration for a single variant
+    if (action === 'GENERATE_WITH_OVERRIDES' && targetVariantId) {
+      const singleConfig = configs['default']; // In regen, the payload is structured as a single run
+      const result = generateSchedule(singleConfig, (msg, pct) => {
+        self.postMessage({ status: 'PROGRESS', message: msg, percentage: pct });
       });
+
+      if (sizeOverrides && sizeOverrides.length > 0) {
+        result.sections = result.sections.map((sec: Section) => {
+          const override = sizeOverrides.find((o) => o.sectionId === sec.id);
+          if (override) return { ...sec, enrollment: override.enrollment };
+          return sec;
+        });
+      }
+      
+      const { logs, placementHistory, ...leanResult } = result;
+      self.postMessage({ status: 'VARIANT_SUCCESS', data: leanResult, variantId: targetVariantId });
+      return;
     }
 
-    // 3. Strip heavy debug data before crossing the worker boundary.
-    //    Structured cloning of logs/placementHistory can block the main thread.
-    const { logs, placementHistory, ...leanResult } = result;
-    self.postMessage({ status: 'SUCCESS', data: leanResult });
+    // Handle full generation (single or multiple)
+    if (structure === 'multiple') {
+      const finalResult: ScheduleResult = {
+        structure: 'multiple',
+        variantDefs,
+        variants: {},
+      };
+      
+      const variantIds = Object.keys(configs);
+      const totalVariants = variantIds.length;
+
+      for (let i = 0; i < totalVariants; i++) {
+        const variantId = variantIds[i];
+        const variantConfig = configs[variantId];
+        const progressOffset = (i / totalVariants) * 100;
+        const progressScale = 1 / totalVariants;
+
+        const result = generateSchedule(variantConfig, (msg, pct) => {
+          const scaledPct = progressOffset + (pct * progressScale);
+          self.postMessage({ status: 'PROGRESS', message: `${variantDefs[i].name}: ${msg}`, percentage: scaledPct });
+        });
+        
+        const { logs, placementHistory, ...leanResult } = result;
+        finalResult.variants[variantId] = leanResult as SingleScheduleResult;
+      }
+
+      self.postMessage({ status: 'SUCCESS', data: finalResult });
+
+    } else {
+      // Single schedule generation
+      const singleConfig = configs['default'];
+      const result = generateSchedule(singleConfig, (msg, pct) => {
+        self.postMessage({ status: 'PROGRESS', message: msg, percentage: pct });
+      });
+
+      if (action === 'GENERATE_WITH_OVERRIDES' && sizeOverrides && sizeOverrides.length > 0) {
+        result.sections = result.sections.map((sec: Section) => {
+          const override = sizeOverrides.find((o) => o.sectionId === sec.id);
+          if (override) return { ...sec, enrollment: override.enrollment };
+          return sec;
+        });
+      }
+
+      const { logs, placementHistory, ...leanResult } = result;
+      
+      const finalResult: ScheduleResult = {
+        structure: 'single',
+        variantDefs,
+        variants: {
+          'default': leanResult as SingleScheduleResult,
+        },
+      };
+      self.postMessage({ status: 'SUCCESS', data: finalResult });
+    }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "An unknown error occurred during generation.";
     self.postMessage({ status: 'ERROR', error: message });

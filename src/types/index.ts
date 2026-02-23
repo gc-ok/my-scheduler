@@ -120,7 +120,13 @@ export interface RecessConfig {
   afterPeriod: number | string;
 }
 
-export interface ScheduleResult {
+export interface ScheduleVariantDef {
+  id: string;
+  name: string;
+  assignedDays: number[];
+}
+
+export interface SingleScheduleResult {
   sections: Section[];
   periods: Period[];
   stats?: {
@@ -132,6 +138,14 @@ export interface ScheduleResult {
   };
   logs?: unknown[];
   placementHistory?: unknown[];
+}
+
+export interface ScheduleResult {
+  structure: 'single' | 'multiple';
+  variantDefs: ScheduleVariantDef[];
+  variants: {
+    [variantId: string]: SingleScheduleResult;
+  };
 }
 
 // --- WizardState: flat shape the wizard UI reads/writes ---
@@ -146,6 +160,12 @@ export interface WizardState {
   periodLength?: number;
   passingTime?: number;
   scheduleMode?: string;
+
+  // Multi-schedule setup
+  scheduleStructure?: "single" | "multiple";
+  scheduleVariantDefs?: ScheduleVariantDef[];
+  variantConfigs?: Record<string, Partial<WizardState>>;
+  activeVariantId?: string;
 
   // Flat lunch fields (normalized into lunchConfig)
   lunchStyle?: string;
