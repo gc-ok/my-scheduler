@@ -1,5 +1,5 @@
 // src/core/engine.ts
-import { ScheduleConfig, Section, Period, PlcGroup, RecessConfig } from '../types';
+import { EngineConfig, Section, Period, PlcGroup, RecessConfig } from '../types';
 import { ResourceTracker } from './ResourceTracker';
 import { BaseStrategy, StandardStrategy, ABStrategy, Block4x4Strategy, TrimesterStrategy } from './strategies/ScheduleStrategies';
 
@@ -26,7 +26,7 @@ function seededShuffle<T>(arr: T[], rng: () => number): T[] {
 }
 
 // Derive a deterministic seed from config inputs
-function deriveConfigSeed(config: ScheduleConfig): number {
+function deriveConfigSeed(config: EngineConfig): number {
   const str = JSON.stringify({
     t: (config.teachers || []).length,
     c: (config.courses || []).length,
@@ -124,7 +124,7 @@ class StructuredLogger {
 }
 
 // --- Main Scheduling Engine ---
-export function generateSchedule(config: ScheduleConfig, onProgress?: (msg: string, pct: number) => void) {
+export function generateSchedule(config: EngineConfig, onProgress?: (msg: string, pct: number) => void) {
   const rng = createSeededRng(deriveConfigSeed(config));
 
   const {
@@ -136,8 +136,8 @@ export function generateSchedule(config: ScheduleConfig, onProgress?: (msg: stri
     periods = [],
   } = config;
 
-  const lunchConfig: NonNullable<ScheduleConfig['lunchConfig']> = config.lunchConfig ?? {};
-  const winConfig: NonNullable<ScheduleConfig['winConfig']> = config.winConfig ?? {};
+  const lunchConfig: NonNullable<EngineConfig['lunchConfig']> = config.lunchConfig ?? {};
+  const winConfig: NonNullable<EngineConfig['winConfig']> = config.winConfig ?? {};
   const recessConfig: RecessConfig = config.recessConfig ?? { enabled: false, duration: 20, afterPeriod: 2 };
 
   const logger = new StructuredLogger();
@@ -451,7 +451,7 @@ export function generateSchedule(config: ScheduleConfig, onProgress?: (msg: stri
 
     electiveCourses.forEach(c => {
       let num = c.sections;
-      const size = c.largeCapacity ? 50 : (c.maxSize || maxClassSize);
+      const size = c.maxSize || maxClassSize;
 
       if (!num) {
         const share = 1 / (electiveCourses.length || 1);
@@ -467,7 +467,7 @@ export function generateSchedule(config: ScheduleConfig, onProgress?: (msg: stri
 
     electiveCourses.forEach(c => {
       const num = courseSectionCounts.get(c.id) || 1;
-      const size = c.largeCapacity ? 50 : (c.maxSize || maxClassSize);
+      const size = c.maxSize || maxClassSize;
       
       for(let s=0; s<num; s++) {
         let currentEnrollment = baseEnrollment;

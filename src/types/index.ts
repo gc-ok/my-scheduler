@@ -134,8 +134,9 @@ export interface ScheduleResult {
   placementHistory?: unknown[];
 }
 
-// A generic Config interface based on your engine.js
-export interface ScheduleConfig {
+// --- WizardState: flat shape the wizard UI reads/writes ---
+// All fields optional. Normalized into EngineConfig by buildScheduleConfig().
+export interface WizardState {
   inputMode?: string;
   schoolType?: string;
   scheduleType?: "standard" | "ab_block" | "4x4_block" | "trimester" | string;
@@ -144,49 +145,9 @@ export interface ScheduleConfig {
   schoolEnd?: string;
   periodLength?: number;
   passingTime?: number;
-  
-  lunchConfig?: {
-    style?: "unit" | "split" | "multi_period";
-    lunchPeriod?: number | string;
-    lunchPeriods?: (number | string)[];
-    lunchDuration?: number;
-    numWaves?: number;
-    minClassTime?: number;
-  };
-  
-  winConfig?: {
-    enabled?: boolean;
-    winPeriod?: number | string;
-    model?: string;
-    afterPeriod?: number | string;
-    winDuration?: number;
-  };
-  
-  recessConfig?: RecessConfig;
-  
-  teachers?: Teacher[];
-  courses?: Course[];
-  cohorts?: Cohort[]; // NEW: For Elementary/Cohort-based scheduling
-  rooms?: Room[];
-  constraints?: Constraint[]; 
-  plcGroups?: PlcGroup[];
-  teacherAvailability?: TeacherAvailability[];
-  courseRelationships?: CourseRelationship[];
-  
-  studentCount?: number;
-  maxClassSize?: number;
-  planPeriodsPerDay?: number;
-  plcEnabled?: boolean;
-  plcFrequency?: string;
   scheduleMode?: string;
-  periods?: Period[];
 
-  // Wizard-specific flat properties (normalized by buildScheduleConfig)
-  winEnabled?: boolean;
-  winPeriod?: number | string;
-  winModel?: string;
-  winAfterPeriod?: number | string;
-  winDuration?: number;
+  // Flat lunch fields (normalized into lunchConfig)
   lunchStyle?: string;
   lunchPeriod?: number | string;
   lunchPeriods?: (number | string)[];
@@ -194,12 +155,95 @@ export interface ScheduleConfig {
   numLunchWaves?: number;
   minClassTime?: number;
   lunchModel?: string;
+
+  // Flat WIN fields (normalized into winConfig)
+  winEnabled?: boolean;
+  winPeriod?: number | string;
+  winModel?: string;
+  winAfterPeriod?: number | string;
+  winDuration?: number;
+
+  // Recess (already structured, passed through)
+  recessConfig?: RecessConfig;
+
+  // Data collections
+  teachers?: Teacher[];
+  courses?: Course[];
+  cohorts?: Cohort[];
+  rooms?: Room[];
+  constraints?: Constraint[];
+  plcGroups?: PlcGroup[];
+  teacherAvailability?: TeacherAvailability[];
+  courseRelationships?: CourseRelationship[];
+  periods?: Period[];
+
+  // Scalar settings
+  studentCount?: number;
+  maxClassSize?: number;
+  planPeriodsPerDay?: number;
+  plcEnabled?: boolean;
+  plcFrequency?: string;
+
+  // Quick-setup wizard helpers
   departments?: { id: string; name: string; teacherCount: number; required: boolean; roomType: string; teacherNames: string[]; teacherFloaters?: boolean[] }[];
   roomCount?: number;
   labCount?: number;
   gymCount?: number;
   targetLoad?: number;
   students?: { count: number };
+}
+
+// --- EngineConfig: resolved shape consumed by the scheduling engine ---
+// Nested configs are required (with defaults). No flat duplicates.
+export interface EngineConfig {
+  schoolType?: string;
+  scheduleType?: "standard" | "ab_block" | "4x4_block" | "trimester" | string;
+  periodsCount?: number;
+  schoolStart: string;
+  schoolEnd?: string;
+  periodLength: number;
+  passingTime: number;
+  scheduleMode?: string;
+
+  lunchConfig: {
+    style: "unit" | "split" | "multi_period";
+    lunchPeriod: number | string;
+    lunchPeriods: (number | string)[];
+    lunchDuration: number;
+    numWaves: number;
+    minClassTime: number;
+  };
+
+  winConfig: {
+    enabled: boolean;
+    winPeriod?: number | string;
+    model: string;
+    afterPeriod: number | string;
+    winDuration: number;
+  };
+
+  recessConfig: RecessConfig;
+
+  teachers: Teacher[];
+  courses: Course[];
+  cohorts: Cohort[];
+  rooms: Room[];
+  constraints: Constraint[];
+  plcGroups?: PlcGroup[];
+  teacherAvailability?: TeacherAvailability[];
+  courseRelationships?: CourseRelationship[];
+  periods: Period[];
+
+  studentCount: number;
+  maxClassSize: number;
+  planPeriodsPerDay: number;
+  plcEnabled?: boolean;
+  plcFrequency?: string;
+
+  // Regen overrides
   lockedSections?: Section[];
   manualSections?: Section[];
 }
+
+// Backwards-compatible alias — use WizardState for wizard code, EngineConfig for engine code.
+export type ScheduleConfig = WizardState & Partial<EngineConfig>;

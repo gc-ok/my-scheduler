@@ -1,72 +1,25 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import ScheduleGridView from "./components/grid/ScheduleGridView";
 import WizardController from "./views/wizard/WizardController";
 import { Logo } from "./components/ui/CoreUI";
-import { ScheduleConfig, ScheduleResult, Section } from "./types";
-import { buildScheduleConfig } from "./utils/scheduleConfig";
-import { saveToDB, loadFromDB, clearDB } from "./utils/db";
-import { validateConfig } from "./utils/validator";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { WizardState, ScheduleResult } from "./types";
+import { saveToDB } from "./utils/db";
+import { useScheduleWorker } from "./hooks/useScheduleWorker";
+import { useSessionRestore } from "./hooks/useSessionRestore";
+import { useScheduleExport } from "./hooks/useScheduleExport";
 import css from "./App.module.css";
 
 export default function App() {
   const [step, setStep] = useState<number>(0);
-  const [config, setConfig] = useState<Partial<ScheduleConfig>>({});
+  const [config, setConfig] = useState<WizardState>({});
   const [schedule, setSchedule] = useState<ScheduleResult | null>(null);
-  const [isDataLoaded, setIsDataLoaded] = useState<boolean>(false);
 
-  const [isGenerating, setIsGenerating] = useState<boolean>(false);
-  const [genProgress, setGenProgress] = useState({ msg: "Starting...", pct: 0 });
-  const [errorState, setErrorState] = useState<{ title: string; messages: string[] } | null>(null);
-  const workerRef = useRef<Worker | null>(null);
+  const { isDataLoaded, pendingRestore, acceptRestore, declineRestore } = useSessionRestore();
+  const { isGenerating, genProgress, errorState, generate, regenerate, clearError } = useScheduleWorker(config, setSchedule, setStep);
+  const { exportCSV } = useScheduleExport(schedule);
 
-  // Welcome-back restore prompt
-  const [pendingRestore, setPendingRestore] = useState<{
-    config: Partial<ScheduleConfig>;
-    step: number;
-    schedule: ScheduleResult | null;
-  } | null>(null);
-
-  // --- PERSISTENCE LOGIC ---
-  useEffect(() => {
-    const restoreSession = async () => {
-      try {
-        const savedConfig = await loadFromDB<Partial<ScheduleConfig>>("config");
-        const savedStep = await loadFromDB<number>("step");
-        const savedSchedule = await loadFromDB<ScheduleResult>("schedule");
-
-        if (savedConfig && savedStep !== null && savedStep > 0) {
-          setPendingRestore({
-            config: savedConfig,
-            step: savedStep,
-            schedule: savedSchedule,
-          });
-        }
-      } catch (err) {
-        console.warn("Could not restore session:", err);
-      } finally {
-        setIsDataLoaded(true);
-      }
-    };
-    restoreSession();
-  }, []);
-
-  const handleContinueSession = () => {
-    if (pendingRestore) {
-      setConfig(pendingRestore.config);
-      setStep(pendingRestore.step);
-      if (pendingRestore.schedule) setSchedule(pendingRestore.schedule);
-    }
-    setPendingRestore(null);
-  };
-
-  const handleStartOver = async () => {
-    setPendingRestore(null);
-    setConfig({});
-    setStep(0);
-    setSchedule(null);
-    await clearDB();
-  };
-
+  // Debounced persistence
   useEffect(() => {
     if (!isDataLoaded) return;
     const timer = setTimeout(() => {
@@ -78,88 +31,25 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [config, step, isDataLoaded]);
 
-  useEffect(() => {
-    workerRef.current = new Worker(new URL('./core/worker.ts', import.meta.url), { type: 'module' });
-
-    workerRef.current.onmessage = (e) => {
-      const { status, data, error, message, percentage } = e.data;
-
-      if (status === 'PROGRESS') {
-        setGenProgress({ msg: message, pct: percentage });
-        return;
-      }
-
-      setIsGenerating(false);
-      if (status === 'SUCCESS') {
-        const { logs, placementHistory, ...leanSchedule } = data;
-        saveToDB("schedule", leanSchedule);
-        setSchedule(data);
-        setStep(99);
-      } else {
-        console.error("Scheduling Engine Error:", error);
-        setErrorState({ title: "Scheduling Engine Error", messages: [error || "An unknown error occurred."] });
-      }
-    };
-
-    return () => { workerRef.current?.terminate(); };
-  }, []);
-
-  const gen = () => {
-    setErrorState(null);
-    const validationErrors = validateConfig(config);
-    if (validationErrors.length > 0) {
-      setErrorState({ title: "Configuration Error", messages: validationErrors });
-      return;
+  const handleContinueSession = useCallback(() => {
+    const data = acceptRestore();
+    if (data) {
+      setConfig(data.config);
+      setStep(data.step);
+      if (data.schedule) setSchedule(data.schedule);
     }
+  }, [acceptRestore]);
 
-    setIsGenerating(true);
-    const finalConfig = buildScheduleConfig(config);
-    setGenProgress({ msg: "Initializing...", pct: 0 });
-    workerRef.current?.postMessage({ action: 'GENERATE', config: finalConfig });
-  };
+  const handleStartOver = useCallback(async () => {
+    await declineRestore();
+    setConfig({});
+    setStep(0);
+    setSchedule(null);
+  }, [declineRestore]);
 
-  const regen = () => {
-    if (!schedule) return;
-    setIsGenerating(true);
-    setGenProgress({ msg: "Refactoring...", pct: 0 });
-
-    const lockedSections = schedule.sections.filter((s: Section) => s.locked);
-    const manualSections = schedule.sections.filter((s: Section) => s.isManual && !s.locked);
-    const sizeOverrides = schedule.sections
-      .filter((s: Section) => s.enrollment !== s.maxSize && !s.isManual)
-      .map((s: Section) => ({ sectionId: s.id, enrollment: s.enrollment }));
-
-    const regenConfig = { ...buildScheduleConfig(config), lockedSections, manualSections };
-    workerRef.current?.postMessage({ action: 'GENERATE_WITH_OVERRIDES', config: regenConfig, sizeOverrides });
-  };
-
-  const exportCSV = () => {
-    if (!schedule?.sections) return;
-
-    const headers = [
-      "Course ID", "Course Name", "Section ID", "Section Number",
-      "Teacher ID", "Teacher Name", "Room", "Period", "Term",
-      "Enrollment", "Max Size"
-    ];
-
-    const safe = (val: string | number | null | undefined) => `"${String(val || '').replace(/"/g, '""')}"`;
-
-    const rows = schedule.sections.map((s: Section) => [
-      safe(s.courseId), safe(s.courseName), safe(s.id), s.sectionNum,
-      safe(s.teacher), safe(s.teacherName), safe(s.room), safe(s.period),
-      s.term || "FY", s.enrollment, s.maxSize
-    ].join(","));
-
-    const csvContent = [headers.join(","), ...rows].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `master_schedule_export_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  const regen = useCallback(() => {
+    if (schedule) regenerate(schedule);
+  }, [schedule, regenerate]);
 
   const ErrorModal = () => (
     <div className={css.errorOverlay} role="dialog" aria-modal="true" aria-labelledby="error-title">
@@ -168,7 +58,7 @@ export default function App() {
         <ul className={css.errorList}>
           {errorState?.messages.map((m, i) => <li key={i}>{m}</li>)}
         </ul>
-        <button className={css.errorDismiss} onClick={() => setErrorState(null)}>
+        <button className={css.errorDismiss} onClick={clearError}>
           Dismiss & Fix
         </button>
       </div>
@@ -226,7 +116,9 @@ export default function App() {
             {schedule.stats?.scheduledCount}/{schedule.stats?.totalSections} scheduled · {schedule.stats?.conflictCount} conflicts
           </div>
         </div>
-        <ScheduleGridView schedule={schedule} config={config} setSchedule={setSchedule} onRegenerate={regen} onBackToConfig={() => setStep(9)} onExport={exportCSV} />
+        <ErrorBoundary>
+          <ScheduleGridView schedule={schedule} config={config} setSchedule={setSchedule} onRegenerate={regen} onBackToConfig={() => setStep(9)} onExport={exportCSV} />
+        </ErrorBoundary>
       </div>
     );
   }
@@ -234,7 +126,7 @@ export default function App() {
   return (
     <div className={css.root}>
       {errorState && <ErrorModal />}
-      <WizardController step={step} setStep={setStep} config={config} setConfig={setConfig} onComplete={gen} />
+      <WizardController step={step} setStep={setStep} config={config} setConfig={setConfig} onComplete={generate} />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 // c:\Users\castillog\Downloads\Random codes\Master Course\my-scheduler\src\utils\validator.ts
-import { ScheduleConfig } from "../types";
+import { WizardState } from "../types";
 
-export const validateConfig = (config: Partial<ScheduleConfig>): string[] => {
+export const validateConfig = (config: WizardState): string[] => {
   const errors: string[] = [];
 
   // 1. Critical Resources

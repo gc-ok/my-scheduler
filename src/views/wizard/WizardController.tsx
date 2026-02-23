@@ -8,14 +8,14 @@ import {
   CSVUploadStep, ConstraintsStep
 } from "./steps";
 
-import { ScheduleConfig } from "../../types";
+import { WizardState } from "../../types";
 import css from "./WizardController.module.css";
 
 interface WizardControllerProps {
   step: number;
   setStep: (step: number) => void;
-  config: Partial<ScheduleConfig>;
-  setConfig: (config: Partial<ScheduleConfig>) => void;
+  config: WizardState;
+  setConfig: (config: WizardState) => void;
   onComplete: () => void;
 }
 

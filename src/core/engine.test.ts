@@ -1,7 +1,8 @@
 // src/core/engine.test.ts
 import { describe, it, expect } from 'vitest';
 import { generateSchedule } from './engine';
-import { ScheduleConfig, Teacher, Course, Room } from '../types';
+import { Teacher, Course, Room } from '../types';
+import { buildScheduleConfig } from '../utils/scheduleConfig';
 
 // Mock Data
 const mockTeachers: Teacher[] = [
@@ -22,7 +23,7 @@ const mockRooms: Room[] = [
 describe('Scheduling Engine', () => {
   
   it('should generate a valid schedule structure', () => {
-    const config: ScheduleConfig = {
+    const config = buildScheduleConfig({
       teachers: mockTeachers,
       courses: mockCourses,
       rooms: mockRooms,
@@ -32,7 +33,7 @@ describe('Scheduling Engine', () => {
       passingTime: 5,
       scheduleType: "standard",
       studentCount: 100
-    };
+    });
 
     const result = generateSchedule(config);
 
@@ -42,42 +43,42 @@ describe('Scheduling Engine', () => {
   });
 
   it('should assign teachers to sections correctly', () => {
-    const config: ScheduleConfig = {
+    const config = buildScheduleConfig({
       teachers: mockTeachers,
       courses: mockCourses,
       rooms: mockRooms,
       periodsCount: 7
-    };
+    });
 
     const result = generateSchedule(config);
     const mathSection = result.sections.find(s => s.courseId === 'c1');
-    
+
     expect(mathSection?.teacher).toBe('t1');
     expect(mathSection?.department).toBe('Math');
   });
 
   it('should detect conflicts if no teachers exist', () => {
-    const config: ScheduleConfig = {
+    const config = buildScheduleConfig({
       teachers: [], // Empty
       courses: mockCourses,
       rooms: mockRooms,
       periodsCount: 7
-    };
+    });
 
     const result = generateSchedule(config);
     const section = result.sections[0];
-    
+
     expect(section.hasConflict).toBe(true);
     expect(section.conflictReason).toBe("No Teacher");
   });
 
   it('should respect period counts', () => {
-    const config: ScheduleConfig = {
+    const config = buildScheduleConfig({
       teachers: mockTeachers,
       courses: mockCourses,
       rooms: mockRooms,
       periodsCount: 4 // Short day
-    };
+    });
 
     const result = generateSchedule(config);
     expect(result.periodList.length).toBe(4);

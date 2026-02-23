@@ -1,6 +1,6 @@
 // src/core/strategies/ScheduleStrategies.ts
 import { ResourceTracker } from '../ResourceTracker';
-import { Section, Period, Room, ScheduleConfig } from '../../types';
+import { Section, Period, Room, EngineConfig } from '../../types';
 
 const getTermFromSlot = (slot: string) => {
   if (slot.startsWith("S1")) return "S1";
@@ -33,13 +33,13 @@ export interface ScheduleConflict {
 
 export abstract class BaseStrategy {
   tracker: ResourceTracker;
-  config: ScheduleConfig;
+  config: EngineConfig;
   logger: ScheduleLogger;
   conflicts: ScheduleConflict[];
   secsInPeriod: Record<string, number>;
   rng: () => number;
 
-  constructor(tracker: ResourceTracker, config: ScheduleConfig, logger: ScheduleLogger, rng?: () => number) {
+  constructor(tracker: ResourceTracker, config: EngineConfig, logger: ScheduleLogger, rng?: () => number) {
     this.tracker = tracker;
     this.config = config;
     this.logger = logger;
@@ -221,75 +221,119 @@ export abstract class BaseStrategy {
     this.logger.logPlacement(sec, slot, cost, evals);
   }
 
+  private static readonly MAX_BACKTRACK_DEPTH = 3;
+  private static readonly HARD_BLOCKS = ["LUNCH", "PLC", "PLAN", "BLOCKED"];
+
   attemptBacktrack(sec: Section, candidateSlots: string[], sections: Section[], rooms: Room[]): boolean {
+    return this.backtrackChain(sec, candidateSlots, sections, rooms, BaseStrategy.MAX_BACKTRACK_DEPTH, new Set());
+  }
+
+  /**
+   * Multi-level backtracking: tries to free a slot for `sec` by displacing
+   * a chain of up to `depth` sections. Uses `visited` to prevent cycles.
+   */
+  private backtrackChain(
+    sec: Section, candidateSlots: string[], sections: Section[],
+    rooms: Room[], depth: number, visited: Set<string>
+  ): boolean {
+    if (depth <= 0) return false;
+    visited.add(sec.id);
+
     const slots = this.shuffle(candidateSlots);
 
     for (const slot of slots) {
-      // 1. Check if the blocker is a Teacher Conflict (the most common bottleneck)
+      // 1. Identify the blocker in this slot
       let blockerId = this.tracker.getBlocker(sec.teacher!, slot);
-
-      // NEW: Check Co-Teacher blocker if main teacher is free
       if (!blockerId && sec.coTeacher) {
         blockerId = this.tracker.getBlocker(sec.coTeacher, slot);
       }
-      
-      // We can only bump if it's a Section, not a hard block like LUNCH or PLC
-      if (!blockerId || ["LUNCH", "PLC", "PLAN", "BLOCKED"].includes(blockerId)) continue;
+      if (!blockerId || BaseStrategy.HARD_BLOCKS.includes(blockerId)) continue;
 
-      // 2. Identify the Victim
+      // 2. Find the victim section
       const victim = sections.find(s => s.id === blockerId);
-      if (!victim || victim.locked) continue;
+      if (!victim || victim.locked || visited.has(victim.id)) continue;
 
-      // 3. Try to move the Victim
+      // 3. Try to move the victim directly first (cheapest option)
       const victimSlots = candidateSlots.filter(s => s !== slot);
-      let victimNewSlot: string | null = null;
-      let victimNewRoom: string | null = null;
+      const directMove = this.findDirectMove(victim, victimSlots, rooms);
 
-      for (const vSlot of victimSlots) {
-        // Check Teacher Availability for Victim in new slot
-        if (!this.tracker.isTeacherAvailable(victim.teacher, vSlot)) continue;
-        if (victim.coTeacher && !this.tracker.isTeacherAvailable(victim.coTeacher, vSlot)) continue;
-        
-        // Check Room Availability for Victim
-        if (victim.room) {
-           if (!this.tracker.isRoomAvailable(victim.room, vSlot)) continue;
-           victimNewRoom = victim.room;
-        } else {
-           const availableRooms = rooms.filter(r => r.type === victim.roomType && this.tracker.isRoomAvailable(r.id, vSlot));
-           if (availableRooms.length === 0) continue;
-           victimNewRoom = availableRooms[0].id;
-        }
-
-        victimNewSlot = vSlot;
-        break;
+      if (directMove) {
+        // Direct move succeeded — execute the swap
+        this.executeSwap(sec, victim, slot, directMove.slot, directMove.room, rooms, depth);
+        return true;
       }
 
-      if (victimNewSlot) {
-        // 4. EXECUTE THE BUMP
-        this.logger.info(`♻️ Backtracking: Bumping ${victim.courseName} from ${slot} to ${victimNewSlot}`);
-        
-        const oldTerm = getTermFromSlot(slot);
-        const newTerm = getTermFromSlot(victimNewSlot);
+      // 4. Direct move failed — try to chain: recursively free a slot for the victim
+      if (depth > 1) {
+        // Temporarily remove victim from its current slot so the recursive call
+        // sees realistic availability
+        const victimOldTerm = getTermFromSlot(slot);
+        this.tracker.removePlacement(victim.id, slot, victim.teacher, victim.coTeacher, victim.room, victimOldTerm);
 
-        this.tracker.removePlacement(victim.id, slot, victim.teacher, victim.coTeacher, victim.room, oldTerm);
-        this.tracker.assignPlacement(victim, victimNewSlot, victim.teacher, victim.coTeacher, victimNewRoom, newTerm);
-        if (victimNewRoom) victim.roomName = rooms.find(r => r.id === victimNewRoom)?.name;
+        const chainSuccess = this.backtrackChain(victim, victimSlots, sections, rooms, depth - 1, new Set(visited));
 
-        // 5. Place the original Section in the now-free slot
-        let secRoom = sec.room;
-        if (!secRoom) {
-           const availableRooms = rooms.filter(r => r.type === sec.roomType && this.tracker.isRoomAvailable(r.id, slot));
-           if (availableRooms.length > 0) secRoom = availableRooms[0].id;
+        if (chainSuccess) {
+          // Victim was relocated by the recursive call. Place sec in the freed slot.
+          let secRoom = this.findRoom(sec, slot, rooms);
+          if (secRoom) sec.roomName = rooms.find(r => r.id === secRoom)?.name;
+          this.tracker.assignPlacement(sec, slot, sec.teacher, sec.coTeacher, secRoom, victimOldTerm);
+          this.logger.logPlacement(sec, slot, 999, [{ period: slot, cost: 0, reasons: [`Chained backtrack (depth ${BaseStrategy.MAX_BACKTRACK_DEPTH - depth + 1})`] }]);
+          return true;
         }
-        
-        if (secRoom) sec.roomName = rooms.find(r => r.id === secRoom)?.name;
-        this.tracker.assignPlacement(sec, slot, sec.teacher, sec.coTeacher, secRoom, oldTerm);
-        
-        this.logger.logPlacement(sec, slot, 999, [{ period: slot, cost: 0, reasons: ["Backtracked"] }]);
-        return true;
+
+        // Chain failed — restore victim to its original slot
+        this.tracker.assignPlacement(victim, slot, victim.teacher, victim.coTeacher, victim.room, victimOldTerm);
       }
     }
     return false;
+  }
+
+  /** Find a slot where the victim can move directly (teacher + room available). */
+  private findDirectMove(victim: Section, candidateSlots: string[], rooms: Room[]): { slot: string; room: string | null } | null {
+    for (const vSlot of candidateSlots) {
+      if (!this.tracker.isTeacherAvailable(victim.teacher, vSlot)) continue;
+      if (victim.coTeacher && !this.tracker.isTeacherAvailable(victim.coTeacher, vSlot)) continue;
+
+      let room: string | null = null;
+      if (victim.room) {
+        if (!this.tracker.isRoomAvailable(victim.room, vSlot)) continue;
+        room = victim.room;
+      } else {
+        const available = rooms.filter(r => r.type === victim.roomType && this.tracker.isRoomAvailable(r.id, vSlot));
+        if (available.length === 0) continue;
+        room = available[0].id;
+      }
+      return { slot: vSlot, room };
+    }
+    return null;
+  }
+
+  /** Execute the swap: move victim to newSlot, place sec in freed slot. */
+  private executeSwap(
+    sec: Section, victim: Section, freedSlot: string,
+    victimNewSlot: string, victimNewRoom: string | null, rooms: Room[], depth: number
+  ) {
+    const oldTerm = getTermFromSlot(freedSlot);
+    const newTerm = getTermFromSlot(victimNewSlot);
+
+    this.logger.info(`Backtracking (depth ${BaseStrategy.MAX_BACKTRACK_DEPTH - depth + 1}): Bumping ${victim.courseName} from ${freedSlot} to ${victimNewSlot}`);
+
+    this.tracker.removePlacement(victim.id, freedSlot, victim.teacher, victim.coTeacher, victim.room, oldTerm);
+    this.tracker.assignPlacement(victim, victimNewSlot, victim.teacher, victim.coTeacher, victimNewRoom, newTerm);
+    if (victimNewRoom) victim.roomName = rooms.find(r => r.id === victimNewRoom)?.name;
+
+    let secRoom = this.findRoom(sec, freedSlot, rooms);
+    if (secRoom) sec.roomName = rooms.find(r => r.id === secRoom)?.name;
+    this.tracker.assignPlacement(sec, freedSlot, sec.teacher, sec.coTeacher, secRoom, oldTerm);
+
+    this.logger.logPlacement(sec, freedSlot, 999, [{ period: freedSlot, cost: 0, reasons: ["Backtracked"] }]);
+  }
+
+  /** Find an available room for a section in a given slot. */
+  private findRoom(sec: Section, slot: string, rooms: Room[]): string | null {
+    if (sec.room && this.tracker.isRoomAvailable(sec.room, slot)) return sec.room;
+    const available = rooms.filter(r => r.type === sec.roomType && this.tracker.isRoomAvailable(r.id, slot));
+    return available.length > 0 ? available[0].id : null;
   }
 }
 

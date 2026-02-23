@@ -1,10 +1,10 @@
 import { COLORS } from "../../../utils/theme";
 import { Btn, NumInput, Toggle } from "../../../components/ui/CoreUI";
-import { ScheduleConfig, RecessConfig } from "../../../types";
+import { WizardState, RecessConfig } from "../../../types";
 
 interface StepProps {
-  config: Partial<ScheduleConfig>;
-  setConfig: (config: Partial<ScheduleConfig>) => void;
+  config: WizardState;
+  setConfig: (config: WizardState) => void;
   onNext: () => void;
   onBack: () => void;
 }

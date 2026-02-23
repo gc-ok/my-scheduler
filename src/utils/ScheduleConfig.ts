@@ -1,23 +1,34 @@
 // src/utils/scheduleConfig.ts
-import { ScheduleConfig } from '../types';
+// Bridges WizardState (flat UI fields) → EngineConfig (resolved, nested)
+import { WizardState, EngineConfig } from '../types';
 
-export function buildScheduleConfig(config: Partial<ScheduleConfig>): ScheduleConfig {
+export function buildScheduleConfig(config: WizardState): EngineConfig {
   const pc = config.periodsCount || 7;
-  const periodsConfig = (Array.isArray(config.periods) && config.periods.length > 0) ? config.periods : []; 
+  const periodsConfig = (Array.isArray(config.periods) && config.periods.length > 0) ? config.periods : [];
 
   return {
-    ...config,
+    schoolType: config.schoolType,
+    scheduleType: config.scheduleType,
+    periodsCount: config.periodsCount,
+    schoolEnd: config.schoolEnd,
+    scheduleMode: config.scheduleMode,
+    plcEnabled: config.plcEnabled,
+    plcFrequency: config.plcFrequency,
+    plcGroups: config.plcGroups,
+    teacherAvailability: config.teacherAvailability,
+    courseRelationships: config.courseRelationships,
+
     periods: periodsConfig,
     schoolStart: config.schoolStart || "08:00",
     periodLength: config.periodLength || 50,
     passingTime: config.passingTime || 5,
     lunchConfig: {
-      style: (config.lunchConfig?.style || config.lunchStyle || "unit") as "unit" | "split" | "multi_period",
-      lunchPeriod: config.lunchConfig?.lunchPeriod ?? config.lunchPeriod ?? Math.ceil(pc / 2),
-      lunchPeriods: config.lunchConfig?.lunchPeriods || config.lunchPeriods || [],
-      lunchDuration: config.lunchConfig?.lunchDuration || config.lunchDuration || 30,
-      numWaves: config.lunchConfig?.numWaves || config.numLunchWaves || 1,
-      minClassTime: config.lunchConfig?.minClassTime || config.minClassTime || 45
+      style: (config.lunchStyle || "unit") as "unit" | "split" | "multi_period",
+      lunchPeriod: config.lunchPeriod ?? Math.ceil(pc / 2),
+      lunchPeriods: config.lunchPeriods || [],
+      lunchDuration: config.lunchDuration || 30,
+      numWaves: config.numLunchWaves || 1,
+      minClassTime: config.minClassTime || 45,
     },
     winConfig: {
       enabled: config.winEnabled || false,

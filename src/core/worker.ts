@@ -1,9 +1,9 @@
 import { generateSchedule } from './engine';
-import { ScheduleConfig, Section } from '../types';
+import { EngineConfig, Section } from '../types';
 
 self.onmessage = (e: MessageEvent<{ 
   action: 'GENERATE' | 'GENERATE_WITH_OVERRIDES', 
-  config: ScheduleConfig, 
+  config: EngineConfig, 
   sizeOverrides?: { sectionId: string, enrollment: number }[] 
 }>) => {
   const { action, config, sizeOverrides } = e.data;
@@ -23,8 +23,10 @@ self.onmessage = (e: MessageEvent<{
       });
     }
 
-    // 3. Send the completed schedule back to the main thread
-    self.postMessage({ status: 'SUCCESS', data: result });
+    // 3. Strip heavy debug data before crossing the worker boundary.
+    //    Structured cloning of logs/placementHistory can block the main thread.
+    const { logs, placementHistory, ...leanResult } = result;
+    self.postMessage({ status: 'SUCCESS', data: leanResult });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "An unknown error occurred during generation.";
     self.postMessage({ status: 'ERROR', error: message });
