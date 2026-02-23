@@ -6,7 +6,9 @@ export interface Teacher {
   departments?: string[];
   isFloater?: boolean;
   planPeriods?: number;
-  travelTime?: number; // Minutes needed to travel between campuses/buildings
+  travelTime?: number;
+  requiresLab?: boolean;   // Needs a lab room (replaces hardcoded "science" check)
+  requiresGym?: boolean;   // Needs a gym room (replaces hardcoded "pe" check)
 }
 
 export interface Room {
@@ -34,6 +36,9 @@ export interface Course {
   required?: boolean;
   roomType?: string;
   gradeLevel?: string;
+  isSpecial?: boolean;      // Specials rotation (Art, Music, PE, Band, etc.)
+  requiresLab?: boolean;    // Needs a lab room (Chemistry, Biology, etc.)
+  largeCapacity?: boolean;  // Allows larger class size (PE, assembly, etc.)
 }
 
 export interface CourseRelationship {

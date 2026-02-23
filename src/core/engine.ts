@@ -292,16 +292,16 @@ export function generateSchedule(config: ScheduleConfig, onProgress?: (msg: stri
   let rIdx = 0, lIdx = 0;
 
   const sortedTeachers = [...teachers].sort((a, b) => {
-    const aSci = (a.departments || []).some(d => d.includes("science")) ? 1 : 0;
-    const bSci = (b.departments || []).some(d => d.includes("science")) ? 1 : 0;
-    return bSci - aSci;
+    const aLab = a.requiresLab ? 1 : 0;
+    const bLab = b.requiresLab ? 1 : 0;
+    return bLab - aLab;
   });
 
   sortedTeachers.forEach(t => {
-    if (t.isFloater) return; 
+    if (t.isFloater) return;
 
-    const isLab = (t.departments || []).some(d => d.includes("science"));
-    const isGym = (t.departments || []).some(d => d.toLowerCase().includes("pe"));
+    const isLab = !!t.requiresLab;
+    const isGym = !!t.requiresGym;
     
     let assignedRoom: string | null = null;
     if (isLab && labRooms.length > 0) { assignedRoom = labRooms[lIdx % labRooms.length].id; lIdx++; } 
@@ -409,12 +409,16 @@ export function generateSchedule(config: ScheduleConfig, onProgress?: (msg: stri
         room: null, period: null, locked: false
       });
 
-      // 2. Specials (Art, Music, PE)
-      ["Art", "Music", "PE"].forEach(spec => {
+      // 2. Specials rotation — uses courses marked isSpecial, or all non-required courses
+      const specialsCourses = courses.filter(c => c.isSpecial) .length > 0
+        ? courses.filter(c => c.isSpecial)
+        : courses.filter(c => !c.required);
+
+      specialsCourses.forEach(spec => {
         sections.push({
-          id: `${coh.id}-${spec}`, courseId: `SPEC-${spec}`, courseName: `${spec} - ${coh.name}`,
-          sectionNum: 1, maxSize: 30, enrollment: coh.studentCount,
-          department: spec, gradeLevel: coh.gradeLevel, roomType: spec === "PE" ? "gym" : "regular",
+          id: `${coh.id}-${spec.id}`, courseId: spec.id, courseName: `${spec.name} - ${coh.name}`,
+          sectionNum: 1, maxSize: spec.maxSize || 30, enrollment: coh.studentCount,
+          department: spec.department, gradeLevel: coh.gradeLevel, roomType: spec.roomType || "regular",
           isCore: false, teacher: null, room: null, period: null, isSingleton: true
         });
       });
@@ -447,9 +451,8 @@ export function generateSchedule(config: ScheduleConfig, onProgress?: (msg: stri
 
     electiveCourses.forEach(c => {
       let num = c.sections;
-      const isPE = c.department.toLowerCase().includes("pe");
-      const size = isPE ? 50 : (c.maxSize || maxClassSize);
-      
+      const size = c.largeCapacity ? 50 : (c.maxSize || maxClassSize);
+
       if (!num) {
         const share = 1 / (electiveCourses.length || 1);
         num = Math.max(1, Math.ceil((totalElectiveDemand * share) / size));
@@ -464,8 +467,7 @@ export function generateSchedule(config: ScheduleConfig, onProgress?: (msg: stri
 
     electiveCourses.forEach(c => {
       const num = courseSectionCounts.get(c.id) || 1;
-      const isPE = c.department.toLowerCase().includes("pe");
-      const size = isPE ? 50 : (c.maxSize || maxClassSize);
+      const size = c.largeCapacity ? 50 : (c.maxSize || maxClassSize);
       
       for(let s=0; s<num; s++) {
         let currentEnrollment = baseEnrollment;

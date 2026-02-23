@@ -30,16 +30,15 @@ export default function App() {
   useEffect(() => {
     const restoreSession = async () => {
       try {
-        const savedConfig = await loadFromDB("config");
-        const savedStep = await loadFromDB("step");
-        const savedSchedule = await loadFromDB("schedule");
+        const savedConfig = await loadFromDB<Partial<ScheduleConfig>>("config");
+        const savedStep = await loadFromDB<number>("step");
+        const savedSchedule = await loadFromDB<ScheduleResult>("schedule");
 
-        if (savedConfig && savedStep !== undefined && savedStep > 0) {
-          // Don't auto-restore — ask the user first
+        if (savedConfig && savedStep !== null && savedStep > 0) {
           setPendingRestore({
             config: savedConfig,
             step: savedStep,
-            schedule: savedSchedule || null,
+            schedule: savedSchedule,
           });
         }
       } catch (err) {
