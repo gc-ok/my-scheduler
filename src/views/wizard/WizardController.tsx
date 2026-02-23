@@ -21,14 +21,29 @@ interface WizardControllerProps {
 }
 
 export default function WizardController({ step, setStep, config, setConfig, onComplete }: WizardControllerProps) {
-  const showRecess = !["high", "6_12"].includes(config.schoolType || "");
+  // For custom schools, check if the grade range includes elementary grades (K-5) to decide on recess
+  const customRange = config.customGradeRange;
+  const customHasElem = config.schoolType === "custom" && !!customRange &&
+    ["K","1","2","3","4","5"].some(g => {
+      const all = ["K","1","2","3","4","5","6","7","8","9","10","11","12"];
+      const fi = all.indexOf(customRange.from);
+      const ti = all.indexOf(customRange.to);
+      const gi = all.indexOf(g);
+      return fi !== -1 && ti !== -1 && gi >= fi && gi <= ti;
+    });
+
+  // Show recess for elementary-containing schools (not pure middle/high)
+  const showRecess = !["high","6_12"].includes(config.schoolType || "") || customHasElem;
+
+  const isElemType = config.schoolType === "elementary" || config.schoolType === "k8" || customHasElem;
+  const stepLabel10 = config.inputMode === "csv" ? "CSV Upload" : (isElemType ? "Cohort Setup" : "Quick Setup");
 
   const allSteps = [
     { id: 1, label: "School Type" }, { id: 2, label: "Schedule Structure" }, { id: 3, label: "Schedule Type" }, { id: 4, label: "Bell Schedule" },
     { id: 5, label: "Lunch" }, { id: 6, label: "Plan & PLC" }, { id: 7, label: "WIN Time" },
     ...(showRecess ? [{ id: 8, label: "Recess" }] : []),
     { id: 9, label: "Data Input" },
-    { id: 10, label: config.inputMode === "csv" ? "CSV Upload" : (config.schoolType === "elementary" || config.schoolType === "k8" ? "Cohort Setup" : "Quick Setup") },
+    { id: 10, label: stepLabel10 },
     { id: 11, label: "Constraints" }
   ];
 

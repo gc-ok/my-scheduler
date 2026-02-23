@@ -62,11 +62,12 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
   const [expanded, setExpanded] = useState<number | null>(null);
 
   // ELEMENTARY COHORT STATE
+  // parallelGroupId: cohorts sharing the same group ID are scheduled for the same subject at the same period
   const [cohorts, setCohorts] = useState<any[]>(
     c.cohorts && c.cohorts.length > 0 ? c.cohorts : [
-      { id: "c1", name: "1A", gradeLevel: "1", teacherName: "", studentCount: 25 },
-      { id: "c2", name: "1B", gradeLevel: "1", teacherName: "", studentCount: 25 },
-      { id: "c3", name: "2A", gradeLevel: "2", teacherName: "", studentCount: 26 },
+      { id: "c1", name: "1A", gradeLevel: "1", teacherName: "", studentCount: 25, parallelGroupId: "" },
+      { id: "c2", name: "1B", gradeLevel: "1", teacherName: "", studentCount: 25, parallelGroupId: "" },
+      { id: "c3", name: "2A", gradeLevel: "2", teacherName: "", studentCount: 26, parallelGroupId: "" },
     ]
   );
 
@@ -107,10 +108,16 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
       // ELEMENTARY LOGIC — build teachers from cohorts + specials courses
       const teachers: any[] = [];
 
-      // Homeroom teachers (one per cohort)
-      cohorts.forEach((coh, i) => {
+      // Homeroom teachers (one per cohort) — assign teacherId back to cohort so engine can link them
+      const cohortsWithIds = cohorts.map((coh, i) => ({
+        ...coh,
+        teacherId: coh.teacherId || `t_hr_${i}`,
+        parallelGroupId: coh.parallelGroupId || undefined,
+      }));
+
+      cohortsWithIds.forEach(coh => {
         teachers.push({
-          id: coh.teacherId || `t_hr_${i}`,
+          id: coh.teacherId,
           name: coh.teacherName || `Homeroom ${coh.name}`,
           departments: ["Homeroom", `Grade ${coh.gradeLevel}`],
           planPeriods: planP,
@@ -141,7 +148,7 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
 
       setConfig({
         ...c,
-        cohorts,
+        cohorts: cohortsWithIds,
         courses: elemCourses.map(ec => ({ ...ec, maxSize: ms })),
         teachers,
         rooms,
@@ -203,36 +210,47 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
             Each cohort is a fixed group of students who travel together. The homeroom teacher
             covers all core subjects for their cohort.
           </p>
+          <p style={{ fontSize: 11, color: COLORS.textLight, marginBottom: 8 }}>
+            <strong>Parallel Group</strong> (optional): cohorts with the same group label (e.g. "PG1") are scheduled for the same subject at the same period with different teachers — ideal for grade-level teacher swaps.
+          </p>
           {cohorts.map((coh, i) => (
             <div key={coh.id} style={{ display: "flex", gap: 8, padding: 10, background: COLORS.offWhite, borderRadius: 8, marginBottom: 8, alignItems: "center", flexWrap: "wrap" }}>
               <input
                 value={coh.name}
                 onChange={e => { const n = [...cohorts]; n[i] = { ...n[i], name: e.target.value }; setCohorts(n); }}
-                placeholder="Name (e.g. 1A)"
-                style={{ ...INPUT_STYLE, width: 80 }}
+                placeholder="Name (1A)"
+                style={{ ...INPUT_STYLE, width: 72 }}
               />
               <select
                 value={coh.gradeLevel}
                 onChange={e => { const n = [...cohorts]; n[i] = { ...n[i], gradeLevel: e.target.value }; setCohorts(n); }}
-                style={{ ...SELECT_STYLE, width: 90 }}
+                style={{ ...SELECT_STYLE, width: 82 }}
               >
-                {["K","1","2","3","4","5","6"].map(g => <option key={g} value={g}>Gr {g}</option>)}
+                {["K","1","2","3","4","5","6","7","8"].map(g => <option key={g} value={g}>Gr {g}</option>)}
               </select>
               <input
                 value={coh.teacherName || ""}
                 onChange={e => { const n = [...cohorts]; n[i] = { ...n[i], teacherName: e.target.value }; setCohorts(n); }}
-                placeholder="Homeroom Teacher name"
-                style={{ ...INPUT_STYLE, flex: 1, minWidth: 140 }}
+                placeholder="Homeroom Teacher"
+                style={{ ...INPUT_STYLE, flex: 1, minWidth: 130 }}
               />
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <input
                   type="number" min={5} max={50}
                   value={coh.studentCount}
                   onChange={e => { const n = [...cohorts]; n[i] = { ...n[i], studentCount: parseInt(e.target.value) || 0 }; setCohorts(n); }}
-                  style={{ ...SMALL_INPUT, width: 56 }}
+                  style={{ ...SMALL_INPUT, width: 52 }}
                 />
                 <span style={{ fontSize: 11, color: COLORS.textLight }}>sts</span>
               </div>
+              {/* Parallel Block Group */}
+              <input
+                value={coh.parallelGroupId || ""}
+                onChange={e => { const n = [...cohorts]; n[i] = { ...n[i], parallelGroupId: e.target.value || undefined }; setCohorts(n); }}
+                placeholder="Group"
+                title="Parallel group ID — cohorts sharing this label are scheduled for the same subject at the same period"
+                style={{ ...INPUT_STYLE, width: 68, fontSize: 12 }}
+              />
               <button
                 aria-label={`Remove cohort ${coh.name}`}
                 onClick={() => setCohorts(cohorts.filter((_, j) => j !== i))}
@@ -240,7 +258,7 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
               >×</button>
             </div>
           ))}
-          <Btn variant="ghost" small onClick={() => setCohorts([...cohorts, { id: `c_${Date.now()}`, name: "", gradeLevel: "1", teacherName: "", studentCount: 25 }])}>
+          <Btn variant="ghost" small onClick={() => setCohorts([...cohorts, { id: `c_${Date.now()}`, name: "", gradeLevel: "1", teacherName: "", studentCount: 25, parallelGroupId: "" }])}>
             + Add Cohort
           </Btn>
 

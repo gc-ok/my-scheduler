@@ -50,6 +50,10 @@ function buildSingleConfig(config: Partial<WizardState>): EngineConfig {
     studentCount: config.studentCount || 800,
     maxClassSize: config.maxClassSize || 30,
     planPeriodsPerDay: config.planPeriodsPerDay ?? 1,
+    elementaryModel: config.elementaryModel,
+    cohortGrades: config.cohortGrades,
+    useTeams: config.useTeams,
+    customGradeRange: config.customGradeRange,
   };
 }
 

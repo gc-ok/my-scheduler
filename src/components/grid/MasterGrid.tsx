@@ -47,7 +47,24 @@ export const SecCard = ({ section: s, dragItem, onDragStart, togLock, setEditSec
         </div>
       </div>
       <div style={{ color: COLORS.textLight, fontSize: 9, marginTop: 1 }}>{s.teacherName || "TBD"} {s.coTeacherName ? `& ${s.coTeacherName}` : ""} · {s.roomName || "—"}</div>
-      <div style={{ fontSize: 9, color: COLORS.primary, fontWeight: 600, marginTop: 1 }}>👥 {s.enrollment}/{s.maxSize}</div>
+      <div style={{ display: "flex", gap: 4, alignItems: "center", marginTop: 2, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 9, color: COLORS.primary, fontWeight: 600 }}>👥 {s.enrollment}/{s.maxSize}</span>
+        {s.cohortId && (
+          <span title={`Cohort: ${s.cohortId}`} style={{ fontSize: 7, background: "#D1FAE5", color: "#065F46", padding: "1px 4px", borderRadius: 3, fontWeight: 700 }}>
+            🏠 {s.cohortId}
+          </span>
+        )}
+        {s.parallelGroupId && (
+          <span title={`Parallel Group: ${s.parallelGroupId}`} style={{ fontSize: 7, background: "#EDE9FE", color: "#5B21B6", padding: "1px 4px", borderRadius: 3, fontWeight: 700 }}>
+            ⟷ {s.parallelGroupId}
+          </span>
+        )}
+        {s.gradeLevel && s.gradeLevel !== "all" && (
+          <span title={`Grade: ${s.gradeLevel}`} style={{ fontSize: 7, background: "#FEF3C7", color: "#92400E", padding: "1px 4px", borderRadius: 3 }}>
+            Gr {s.gradeLevel}
+          </span>
+        )}
+      </div>
     </div>
   );
 };

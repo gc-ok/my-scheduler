@@ -7,6 +7,10 @@ export class ResourceTracker {
   teacherLoad: Record<string, Record<string, number>>;
   roomOwners: Record<string, string>;
   cohortSchedule: Record<string, Record<string, string>>; // cohortId → slotId → sectionId
+  // Parallel block: key = `${parallelGroupId}|${courseId}`, value = the locked slotId for the whole group
+  parallelSlots: Record<string, string>;
+  // Reference count so we only clear the parallel slot when the last section in the group is removed
+  parallelSlotCount: Record<string, number>;
   maxLoad: number;
 
   constructor(teachers: Teacher[], rooms: Room[], maxLoad: number) {
@@ -15,6 +19,8 @@ export class ResourceTracker {
     this.teacherLoad = {};
     this.roomOwners = {};
     this.cohortSchedule = {};
+    this.parallelSlots = {};
+    this.parallelSlotCount = {};
 
     // In block/trimesters, maxLoad is per term.
     this.maxLoad = maxLoad;
@@ -41,6 +47,11 @@ export class ResourceTracker {
   isCohortAvailable(cohortId: string, slotId: string | number): boolean {
     if (!cohortId || !this.cohortSchedule[cohortId]) return true;
     return !this.cohortSchedule[cohortId][String(slotId)];
+  }
+
+  // Returns the already-assigned slot for a parallel group + course pair, or null if none yet
+  getParallelSlot(parallelGroupId: string, courseId: string): string | null {
+    return this.parallelSlots[`${parallelGroupId}|${courseId}`] || null;
   }
 
   setRoomOwner(roomId: string, teacherId: string) {
@@ -101,11 +112,18 @@ export class ResourceTracker {
       this.cohortSchedule[section.cohortId][slotIdStr] = section.id;
     }
 
+    // Parallel block tracking: lock this group+course to this slot
+    if (section.parallelGroupId && section.courseId) {
+      const key = `${section.parallelGroupId}|${section.courseId}`;
+      this.parallelSlots[key] = slotIdStr;
+      this.parallelSlotCount[key] = (this.parallelSlotCount[key] || 0) + 1;
+    }
+
     section.period = timeSlotId;
     section.term = term;
   }
 
-  removePlacement(sectionId: string, timeSlotId: string | number, teacherId: string | null | undefined, coTeacherId: string | null | undefined, roomId: string | null | undefined, term: string = 'FY', cohortId?: string) {
+  removePlacement(sectionId: string, timeSlotId: string | number, teacherId: string | null | undefined, coTeacherId: string | null | undefined, roomId: string | null | undefined, term: string = 'FY', cohortId?: string, parallelGroupId?: string, courseId?: string) {
     const slotIdStr = String(timeSlotId);
 
     if (teacherId && this.teacherSchedule[teacherId] && this.teacherSchedule[teacherId][slotIdStr] === sectionId) {
@@ -129,6 +147,18 @@ export class ResourceTracker {
     // Cohort conflict tracking cleanup
     if (cohortId && this.cohortSchedule[cohortId] && this.cohortSchedule[cohortId][slotIdStr] === sectionId) {
       delete this.cohortSchedule[cohortId][slotIdStr];
+    }
+
+    // Parallel block tracking cleanup
+    if (parallelGroupId && courseId) {
+      const key = `${parallelGroupId}|${courseId}`;
+      if (this.parallelSlotCount[key]) {
+        this.parallelSlotCount[key]--;
+        if (this.parallelSlotCount[key] <= 0) {
+          delete this.parallelSlots[key];
+          delete this.parallelSlotCount[key];
+        }
+      }
     }
   }
 }

@@ -82,7 +82,7 @@ const EditSectionModal = ({ section, schedule, config, onClose, onSave, onDelete
             {/* --- DYNAMIC TERM-AWARE DROPDOWN --- */}
             <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.textLight, textTransform: "uppercase" }}>Period
               <select name="period" value={formData.period || ""} onChange={handleChange} style={inputStyle}>
-                {(schedule.periodList as Period[]).map(p => {
+                {(schedule.periods as Period[]).map(p => {
                   if (p.type === "win" || p.type === "unit_lunch" || p.type === "recess") {
                     return <option key={p.id} value={p.id}>{p.label}</option>;
                   }
@@ -123,13 +123,13 @@ const EditSectionModal = ({ section, schedule, config, onClose, onSave, onDelete
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.textLight, textTransform: "uppercase" }}>Main Teacher
               <select name="teacher" value={formData.teacher || ""} onChange={handleChange} style={inputStyle}>
-                {(schedule.teachers as Teacher[]).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                {(config.teachers as Teacher[] || []).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             </label>
             <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.textLight, textTransform: "uppercase" }}>Co-Teacher
               <select name="coTeacher" value={formData.coTeacher || ""} onChange={handleChange} style={inputStyle}>
                 <option value="">-- None --</option>
-                {(schedule.teachers as Teacher[]).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                {(config.teachers as Teacher[] || []).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             </label>
           </div>
@@ -287,8 +287,8 @@ export default function ScheduleGridView({ schedule, config, setSchedule, onRege
   } = activeVariant as any; // Cast to any to handle old structure gracefully for now
   
   useEffect(() => {
-    if (activeVariant.plcGroups) setPlcGroups(activeVariant.plcGroups);
-  }, [activeVariant.plcGroups]);
+    if (config.plcGroups) setPlcGroups(config.plcGroups);
+  }, [config.plcGroups]);
 
   const depts = [...new Set((secs as Section[]).map(s => s.department))];
 

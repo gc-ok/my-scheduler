@@ -25,6 +25,11 @@ export interface Cohort {
   teacherId: string;
   teacherName?: string;
   studentCount: number;
+  // Parallel block: cohorts sharing the same parallelGroupId must be scheduled
+  // for the same course at the same period (different teachers, same slot)
+  parallelGroupId?: string;
+  // Override the school-level scheduling model for this grade band
+  scheduleModel?: 'self_contained' | 'departmentalized';
 }
 
 export interface Course {
@@ -95,6 +100,8 @@ export interface Section {
   
   // Cohort binding — if set, no two sections with the same cohortId can share a period
   cohortId?: string;
+  // Parallel block — sections sharing the same parallelGroupId + courseId MUST share a period
+  parallelGroupId?: string;
 
   // State flags
   hasConflict?: boolean;
@@ -207,6 +214,14 @@ export interface WizardState {
   plcEnabled?: boolean;
   plcFrequency?: string;
 
+  // Grade-specific configuration (set by SchoolTypeStep follow-up questions)
+  elementaryModel?: 'unified_self' | 'unified_dept' | 'split_band';
+  // Grades that use cohort-based scheduling. E.g. ["9"] for freshman cohorts, ["6","7","8"] for all MS grades.
+  cohortGrades?: string[];
+  useTeams?: boolean;
+  // Custom school type grade range (e.g. a 5-8 school in Oklahoma)
+  customGradeRange?: { from: string; to: string };
+
   // Quick-setup wizard helpers
   departments?: { id: string; name: string; teacherCount: number; required: boolean; roomType: string; teacherNames: string[]; teacherFloaters?: boolean[] }[];
   roomCount?: number;
@@ -262,6 +277,12 @@ export interface EngineConfig {
   planPeriodsPerDay: number;
   plcEnabled?: boolean;
   plcFrequency?: string;
+
+  // Grade-specific config (forwarded from WizardState)
+  elementaryModel?: 'unified_self' | 'unified_dept' | 'split_band';
+  cohortGrades?: string[];
+  useTeams?: boolean;
+  customGradeRange?: { from: string; to: string };
 
   // Regen overrides
   lockedSections?: Section[];

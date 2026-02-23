@@ -116,17 +116,47 @@ export abstract class BaseStrategy {
     const placementOrder = [...sections].filter(s => !s.locked && !s.hasConflict).sort((a,b) => {
       // 0. Double Blocks (Hardest to schedule)
       if (!!a.isDoubleBlock !== !!b.isDoubleBlock) return a.isDoubleBlock ? -1 : 1;
-      // 1. Singletons (High Priority)
+      // 1. Parallel block sections — must be grouped so the first picks the slot, rest follow
+      const aHasPar = !!a.parallelGroupId;
+      const bHasPar = !!b.parallelGroupId;
+      if (aHasPar !== bHasPar) return aHasPar ? -1 : 1;
+      if (aHasPar && bHasPar) {
+        const aKey = `${a.parallelGroupId}|${a.courseId}`;
+        const bKey = `${b.parallelGroupId}|${b.courseId}`;
+        if (aKey < bKey) return -1;
+        if (aKey > bKey) return 1;
+      }
+      // 2. Singletons (High Priority)
       if (!!a.isSingleton !== !!b.isSingleton) return a.isSingleton ? -1 : 1;
-      // 2. Core vs Elective
+      // 3. Core vs Elective
       return a.isCore === b.isCore ? 0 : a.isCore ? -1 : 1;
     });
 
     placementOrder.forEach(sec => {
+      // PARALLEL BLOCK: if this group+course already has a slot assigned, we MUST use it
+      if (sec.parallelGroupId && sec.courseId) {
+        const assignedSlot = this.tracker.getParallelSlot(sec.parallelGroupId, sec.courseId);
+        if (assignedSlot) {
+          if (
+            this.tracker.isTeacherAvailable(sec.teacher, assignedSlot) &&
+            (!sec.cohortId || this.tracker.isCohortAvailable(sec.cohortId, assignedSlot))
+          ) {
+            this.placeSection(sec, assignedSlot, rooms, 0, [{ period: assignedSlot, cost: 0, reasons: ['Parallel block sync'] }]);
+          } else {
+            sec.hasConflict = true;
+            sec.conflictReason = "Parallel block: teacher/cohort unavailable at group's required slot";
+            this.conflicts.push({ type: 'parallel_conflict', message: `${sec.courseName} S${sec.sectionNum}: Parallel block conflict at ${assignedSlot}`, sectionId: sec.id });
+            this.logger.logFailure(sec, [{ period: assignedSlot, cost: Infinity, reasons: [sec.conflictReason] }]);
+          }
+          return; // either placed or conflict — skip normal slot search
+        }
+        // No slot assigned yet — fall through; ResourceTracker.assignPlacement will record it
+      }
+
       let bestSlot: string | null = null;
       let minCost = Infinity;
       let periodEvaluations: PeriodEvaluation[] = [];
-      
+
       const shuffledSlots = this.shuffle(timeSlots);
 
       for (const slotId of shuffledSlots) {
@@ -269,7 +299,7 @@ export abstract class BaseStrategy {
         // Temporarily remove victim from its current slot so the recursive call
         // sees realistic availability
         const victimOldTerm = getTermFromSlot(slot);
-        this.tracker.removePlacement(victim.id, slot, victim.teacher, victim.coTeacher, victim.room, victimOldTerm, victim.cohortId);
+        this.tracker.removePlacement(victim.id, slot, victim.teacher, victim.coTeacher, victim.room, victimOldTerm, victim.cohortId, victim.parallelGroupId, victim.courseId);
 
         const chainSuccess = this.backtrackChain(victim, victimSlots, sections, rooms, depth - 1, new Set(visited));
 
@@ -319,7 +349,7 @@ export abstract class BaseStrategy {
 
     this.logger.info(`Backtracking (depth ${BaseStrategy.MAX_BACKTRACK_DEPTH - depth + 1}): Bumping ${victim.courseName} from ${freedSlot} to ${victimNewSlot}`);
 
-    this.tracker.removePlacement(victim.id, freedSlot, victim.teacher, victim.coTeacher, victim.room, oldTerm, victim.cohortId);
+    this.tracker.removePlacement(victim.id, freedSlot, victim.teacher, victim.coTeacher, victim.room, oldTerm, victim.cohortId, victim.parallelGroupId, victim.courseId);
     this.tracker.assignPlacement(victim, victimNewSlot, victim.teacher, victim.coTeacher, victimNewRoom, newTerm);
     if (victimNewRoom) victim.roomName = rooms.find(r => r.id === victimNewRoom)?.name;
 

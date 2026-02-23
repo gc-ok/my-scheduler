@@ -434,32 +434,72 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
 
     logger.info(`Cohort-based generation: ${cohorts.length} cohorts, ${actualCore.length} core courses, ${actualSpecials.length} specials.`);
 
-    if (isElemSelf || (isElem && !isElemDept)) {
-      // ── SELF-CONTAINED ──
-      // Each cohort stays together. Homeroom teacher teaches all core subjects.
-      // Specials teachers rotate through each cohort (one section per cohort per special).
-      cohorts.forEach(coh => {
-        // Core subjects — homeroom teacher
-        actualCore.forEach((course, idx) => {
-          sections.push({
-            id: `${coh.id}-${course.id}`,
-            courseId: course.id,
-            courseName: `${course.name} - ${coh.name}`,
-            sectionNum: idx + 1,
-            maxSize: course.maxSize || maxClassSize,
-            enrollment: coh.studentCount,
-            department: course.department,
-            gradeLevel: coh.gradeLevel,
-            roomType: course.roomType || "regular",
-            isCore: true,
-            teacher: coh.teacherId || null,
-            teacherName: coh.teacherName,
-            cohortId: coh.id,
-            room: null, period: null, locked: false,
-          });
-        });
+    // Helper: resolve the scheduling model for a single cohort.
+    // Priority: cohort.scheduleModel → split_band grade-band rule → global setting.
+    const earlyGrades = new Set(['k', 'kindergarten', '0', '1', '2']);
+    const getCohortModel = (coh: typeof cohorts[0]): 'self_contained' | 'departmentalized' => {
+      if (coh.scheduleModel) return coh.scheduleModel;
+      if (config.elementaryModel === 'split_band') {
+        return earlyGrades.has(String(coh.gradeLevel).toLowerCase()) ? 'self_contained' : 'departmentalized';
+      }
+      return (isElemSelf || (isElem && !isElemDept)) ? 'self_contained' : 'departmentalized';
+    };
 
-        // Specials — rotate specials teachers; teacher assigned by dept in bulk loop below
+    if (isElem) {
+      // ── ELEMENTARY (per-cohort model) ──
+      // Supports unified self-contained, unified departmentalized, and split-band (K-2 vs 3-5).
+      // Cohorts with `parallelGroupId` will force the same-course sections into the same period.
+      cohorts.forEach(coh => {
+        const cohModel = getCohortModel(coh);
+
+        if (cohModel === 'self_contained') {
+          // Core subjects — homeroom teacher teaches all of them for this cohort
+          actualCore.forEach((course, idx) => {
+            sections.push({
+              id: `${coh.id}-${course.id}`,
+              courseId: course.id,
+              courseName: `${course.name} - ${coh.name}`,
+              sectionNum: idx + 1,
+              maxSize: course.maxSize || maxClassSize,
+              enrollment: coh.studentCount,
+              department: course.department,
+              gradeLevel: coh.gradeLevel,
+              roomType: course.roomType || "regular",
+              isCore: true,
+              teacher: coh.teacherId || null,
+              teacherName: coh.teacherName,
+              cohortId: coh.id,
+              // Parallel: if K-2 cohorts share a parallel group, core subjects sync across them
+              parallelGroupId: coh.parallelGroupId,
+              room: null, period: null, locked: false,
+            });
+          });
+        } else {
+          // Departmentalized — department teachers cover all cohorts at this grade level
+          actualCore.forEach((course, idx) => {
+            const gradeMatch = !course.gradeLevel || course.gradeLevel === "all" || course.gradeLevel === coh.gradeLevel;
+            if (!gradeMatch) return;
+            sections.push({
+              id: `${coh.id}-dept-${course.id}`,
+              courseId: course.id,
+              courseName: `${course.name} - ${coh.name}`,
+              sectionNum: idx + 1,
+              maxSize: course.maxSize || maxClassSize,
+              enrollment: coh.studentCount,
+              department: course.department,
+              gradeLevel: coh.gradeLevel,
+              roomType: course.roomType || "regular",
+              isCore: true,
+              teacher: null, // dept teacher assigned by bulk loop
+              cohortId: coh.id,
+              // Parallel: departmentalized cohorts in the same group share a subject at the same period
+              parallelGroupId: coh.parallelGroupId,
+              room: null, period: null, locked: false,
+            });
+          });
+        }
+
+        // Specials rotate for all cohorts regardless of model
         actualSpecials.forEach((spec, idx) => {
           sections.push({
             id: `${coh.id}-${spec.id}`,
@@ -472,54 +512,7 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
             gradeLevel: coh.gradeLevel,
             roomType: spec.roomType || "regular",
             isCore: false,
-            teacher: null, // assigned by dept-matching in bulk loop
-            cohortId: coh.id,
-            room: null, period: null, isSingleton: true,
-          });
-        });
-      });
-
-    } else if (isElemDept) {
-      // ── DEPARTMENTALIZED ──
-      // Department teachers teach all cohorts at a specific grade level.
-      // Each cohort gets one section of each core subject (taught by dept teacher, not homeroom).
-      // Cohort conflict tracking prevents double-booking.
-      cohorts.forEach(coh => {
-        actualCore.forEach((course, idx) => {
-          // Only create section if grade level matches (or course is for all grades)
-          const gradeMatch = !course.gradeLevel || course.gradeLevel === "all" || course.gradeLevel === coh.gradeLevel;
-          if (!gradeMatch) return;
-          sections.push({
-            id: `${coh.id}-dept-${course.id}`,
-            courseId: course.id,
-            courseName: `${course.name} - ${coh.name}`,
-            sectionNum: idx + 1,
-            maxSize: course.maxSize || maxClassSize,
-            enrollment: coh.studentCount,
-            department: course.department,
-            gradeLevel: coh.gradeLevel,
-            roomType: course.roomType || "regular",
-            isCore: true,
-            teacher: null, // assigned by dept teacher in bulk loop
-            cohortId: coh.id,
-            room: null, period: null, locked: false,
-          });
-        });
-
-        // Specials still rotate
-        actualSpecials.forEach((spec, idx) => {
-          sections.push({
-            id: `${coh.id}-${spec.id}`,
-            courseId: spec.id,
-            courseName: `${spec.name} - ${coh.name}`,
-            sectionNum: idx + 1,
-            maxSize: spec.maxSize || maxClassSize,
-            enrollment: coh.studentCount,
-            department: spec.department,
-            gradeLevel: coh.gradeLevel,
-            roomType: spec.roomType || "regular",
-            isCore: false,
-            teacher: null,
+            teacher: null, // dept-matching or specials teacher assigned in bulk loop
             cohortId: coh.id,
             room: null, period: null, isSingleton: true,
           });
@@ -528,9 +521,18 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
 
     } else {
       // ── HS / MS COHORT MODE ──
-      // Courses tagged with gradeLevel get sections bound to matching cohorts.
-      // Courses without gradeLevel use standard generation (no cohort binding).
-      const cohortGrades = new Set(cohorts.map(c => c.gradeLevel));
+      // Courses tagged with gradeLevel get sections bound to cohorts when either:
+      //   (a) the cohort itself has that gradeLevel, OR
+      //   (b) that grade is listed in config.cohortGrades (user explicitly opted in)
+      const cohortBoundFromCohorts = new Set(cohorts.map(c => c.gradeLevel));
+      const extraCohortGrades: Set<string> = config.cohortGrades && config.cohortGrades.length > 0
+        ? new Set(config.cohortGrades)
+        : new Set();
+      const cohortGrades = new Set([...cohortBoundFromCohorts, ...extraCohortGrades]);
+
+      if (extraCohortGrades.size > 0) {
+        logger.info(`Cohort tracking enabled for grade(s): ${[...extraCohortGrades].join(", ")}`);
+      }
 
       effectiveCourses.forEach(course => {
         const isCohortCourse = course.gradeLevel && cohortGrades.has(course.gradeLevel);
@@ -550,6 +552,7 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
               isCore: !!course.required,
               teacher: null,
               cohortId: coh.id,
+              parallelGroupId: coh.parallelGroupId,
               room: null, period: null,
             });
           });
