@@ -209,7 +209,7 @@ export abstract class BaseStrategy {
           cost += 500; softFails.push(`Exceeds ${term} target load`); 
         }
         // We now know a room is available, but let's penalize if it's not the preferred one.
-        if (sec.room && sec.room !== availableRoom.id) { 
+        if (sec.room && sec.room !== availableRoom?.id) {
           cost += 100; softFails.push("Preferred room occupied or unsuitable"); 
         }
 
@@ -473,11 +473,120 @@ export class TrimesterStrategy extends BaseStrategy {
     const t1Count = sections.filter(s => s.courseId === sec.courseId && String(s.period).startsWith("T1")).length;
     const t2Count = sections.filter(s => s.courseId === sec.courseId && String(s.period).startsWith("T2")).length;
     const t3Count = sections.filter(s => s.courseId === sec.courseId && String(s.period).startsWith("T3")).length;
-    
+
     if (term === "T1" && t1Count > (t2Count + t3Count)/2) return { cost: 150, reasons: [] };
     if (term === "T2" && t2Count > (t1Count + t3Count)/2) return { cost: 150, reasons: [] };
     if (term === "T3" && t3Count > (t1Count + t2Count)/2) return { cost: 150, reasons: [] };
-    
+
     return { cost: 0, reasons: [] };
+  }
+}
+
+// ── TEAM-BASED (Middle School) ─────────────────────────────────────────────
+// Extends Standard with a cross-team cost: penalises placing two sections
+// whose teachers share the same teamId in the same slot, so the engine
+// naturally spreads team sections across different periods.  Student-cohort
+// conflict prevention is already handled by the existing cohortId mechanism.
+export class TeamBasedStrategy extends StandardStrategy {
+  calculateCustomCost(sec: Section, slot: string, sections: Section[]): { cost: number; reasons: string[] } {
+    const base = super.calculateCustomCost(sec, slot, sections);
+    let cost = base.cost;
+    const reasons = [...base.reasons];
+
+    if (sec.teacher && (this.config as any).teams) {
+      const teams: Array<{ teacherIds: string[] }> = (this.config as any).teams;
+      const secTeam = teams.find(t => t.teacherIds.includes(sec.teacher!));
+      if (secTeam) {
+        // Count how many already-placed sections in this slot belong to the same team
+        const teamConflicts = sections.filter(s =>
+          s.period === slot && s.teacher && secTeam.teacherIds.includes(s.teacher)
+        ).length;
+        if (teamConflicts > 0) {
+          cost += 300 * teamConflicts;
+          reasons.push(`Team period congestion (${teamConflicts} team-mates already in slot)`);
+        }
+      }
+    }
+    return { cost, reasons };
+  }
+}
+
+// ── MODIFIED BLOCK ─────────────────────────────────────────────────────────
+// Two-track schedule: standard periods (STD, e.g. M/W/F) and block periods
+// (BLK, e.g. T/Th).  Periods tagged with days:[1,3,5] are standard;
+// periods tagged with days:[2,4] are block.  The engine balances sections
+// across both tracks to avoid overloading one day type.
+export class ModifiedBlockStrategy extends BaseStrategy {
+  generateTimeSlots(periodList: Period[]): string[] {
+    const slots: string[] = [];
+    periodList.forEach(p => {
+      if (p.days && p.days.length > 0 && p.days[0] % 2 === 0) {
+        // Even day numbers (2, 4) → block days
+        slots.push(`BLK-ALL-${p.id}`);
+      } else {
+        // Odd day numbers (1, 3, 5) or untagged → standard days
+        slots.push(`STD-ALL-${p.id}`);
+      }
+    });
+    return slots;
+  }
+
+  getLoadTerm(slot: string): string {
+    if (slot.startsWith("BLK")) return "BLK";
+    return "STD";
+  }
+
+  calculateCustomCost(sec: Section, slot: string, sections: Section[]): { cost: number; reasons: string[] } {
+    const isBlk = slot.startsWith("BLK");
+    const track = isBlk ? "BLK" : "STD";
+    const otherTrack = isBlk ? "STD" : "BLK";
+
+    // Balance: penalise if this track already has more sections of this course than the other
+    const thisCount = sections.filter(s =>
+      s.courseId === sec.courseId && String(s.period).startsWith(track)
+    ).length;
+    const otherCount = sections.filter(s =>
+      s.courseId === sec.courseId && String(s.period).startsWith(otherTrack)
+    ).length;
+
+    if (thisCount > otherCount + 1) {
+      return { cost: 150, reasons: [`${track} track overloaded for this course`] };
+    }
+
+    // Elective overlap penalty (inherited logic)
+    const sibs = sections.filter(s => s.courseId === sec.courseId && s.period === slot).length;
+    if (!sec.isCore && sibs > 0) {
+      return { cost: 200, reasons: ["Elective overlap"] };
+    }
+
+    return { cost: 0, reasons: [] };
+  }
+}
+
+// ── ROTATING DROP ──────────────────────────────────────────────────────────
+// N-period bank where teachers are assigned to N-1 slots (one free period
+// per day rotates through all N positions over the cycle).  The engine
+// places sections into the standard FY-ALL slots; the maxLoad is reduced
+// by 1 in engine.ts so each teacher naturally gets one empty slot in the
+// bank.  The custom cost distributes sections evenly across all periods so
+// no single period becomes the permanent "drop" victim.
+export class RotatingDropStrategy extends StandardStrategy {
+  calculateCustomCost(sec: Section, slot: string, sections: Section[]): { cost: number; reasons: string[] } {
+    const base = super.calculateCustomCost(sec, slot, sections);
+    let cost = base.cost;
+    const reasons = [...base.reasons];
+
+    // Gently penalise the first two and last period slots for core classes so
+    // the engine spreads sections evenly, making rotation work cleanly.
+    const lastDash = slot.lastIndexOf('-');
+    if (lastDash !== -1 && sec.isCore) {
+      const pIdStr = slot.substring(lastDash + 1);
+      const pId = Number(pIdStr);
+      if (!isNaN(pId) && pId <= 2) {
+        cost += 80;
+        reasons.push("Early-period concentration (rotation balance)");
+      }
+    }
+    return { cost, reasons };
   }
 }

@@ -53,7 +53,9 @@ function buildSingleConfig(config: Partial<WizardState>): EngineConfig {
     elementaryModel: config.elementaryModel,
     cohortGrades: config.cohortGrades,
     useTeams: config.useTeams,
+    teams: config.teams,
     customGradeRange: config.customGradeRange,
+    modifiedBlockPeriods: config.modifiedBlockPeriods,
   };
 }
 

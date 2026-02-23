@@ -1,7 +1,7 @@
 // src/core/engine.ts
 import { EngineConfig, Section, Period, PlcGroup, RecessConfig } from '../types';
 import { ResourceTracker } from './ResourceTracker';
-import { BaseStrategy, StandardStrategy, ABStrategy, Block4x4Strategy, TrimesterStrategy } from './strategies/ScheduleStrategies';
+import { BaseStrategy, StandardStrategy, ABStrategy, Block4x4Strategy, TrimesterStrategy, TeamBasedStrategy, ModifiedBlockStrategy, RotatingDropStrategy } from './strategies/ScheduleStrategies';
 
 // --- Seeded PRNG (Mulberry32) for deterministic scheduling ---
 // Given the same seed, produces the same sequence of random numbers every time.
@@ -278,6 +278,22 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
   const effectiveSlots = numTeachingPeriods - lunchPeriodsCount - recessCount; 
   
   let dailyMaxLoad = Math.max(1, effectiveSlots - safePlanPeriods - (plcEnabled ? 1 : 0));
+
+  // Rotating drop: one period in the bank "drops" each day, so each teacher
+  // has one fewer teaching slot per day than the total period count.
+  if (config.scheduleType === "rotating_drop") {
+    dailyMaxLoad = Math.max(1, dailyMaxLoad - 1);
+  }
+
+  // Modified block: the period list contains both standard (M/W/F) and block
+  // (T/Th) periods.  Base maxLoad on the standard-day count; the block track
+  // is naturally capped by its smaller period count.
+  if (config.scheduleType === "modified_block") {
+    const stdPeriods = periodList.filter(p => !p.days || p.days.includes(1));
+    const stdLunch = stdPeriods.filter(p => p.type === "unit_lunch" || p.type === "multi_lunch").length;
+    dailyMaxLoad = Math.max(1, stdPeriods.length - stdLunch - safePlanPeriods - (plcEnabled ? 1 : 0));
+  }
+
   let maxLoad = config.scheduleType === "ab_block" ? (dailyMaxLoad * 2) : dailyMaxLoad;
   
   logger.info(`Calculated Max Load: ${maxLoad}`, { effectiveSlots, safePlanPeriods, plcEnabled });
@@ -391,6 +407,25 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
       if (c.teacherId) tracker.blockTeacher(c.teacherId, toUniv(Number(c.period)), "BLOCKED");
     }
   });
+
+  // --- TEAM-BASED PRE-PROCESSING ---
+  // For each interdisciplinary team, find the period where the fewest team
+  // teachers are already blocked, and assign it as their shared planning period.
+  if (config.useTeams && config.teams && config.teams.length > 0) {
+    const validPlanPids = periodList.filter(p => p.type === "class").map(p => p.id);
+    config.teams.forEach(team => {
+      let bestPid: string | number = validPlanPids[0];
+      let minBlocked = Infinity;
+      validPlanPids.forEach(pid => {
+        const blocked = team.teacherIds.filter(
+          tid => !tracker.isTeacherAvailable(tid, toUniv(pid))
+        ).length;
+        if (blocked < minBlocked) { minBlocked = blocked; bestPid = pid; }
+      });
+      team.teacherIds.forEach(tid => tracker.blockTeacher(tid, toUniv(bestPid), "PLAN"));
+      logger.info(`Team '${team.name}': common planning period → Period ${bestPid}`);
+    });
+  }
 
   if (onProgress) onProgress("Building Course Sections...", 40);
 
@@ -694,12 +729,15 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
     logger.info(`Engaging Elementary ${config.scheduleType === "elementary_self" ? "Self-Contained" : "Departmentalized"} Strategy (Standard + Cohort Tracking)...`);
     strategy = new StandardStrategy(tracker, config, logger, rng);
   } else if (config.scheduleType === "ms_team") {
-    logger.info("Engaging Team-Based Strategy (Standard + Cohort Tracking)...");
-    strategy = new StandardStrategy(tracker, config, logger, rng);
+    logger.info("Engaging Team-Based Strategy (interdisciplinary teams with common planning periods)...");
+    strategy = new TeamBasedStrategy(tracker, config, logger, rng);
+  } else if (config.scheduleType === "modified_block") {
+    logger.info(`Engaging Modified Block Strategy (standard + block day tracks, maxLoad=${maxLoad})...`);
+    strategy = new ModifiedBlockStrategy(tracker, config, logger, rng);
+  } else if (config.scheduleType === "rotating_drop") {
+    logger.info(`Engaging Rotating Drop Strategy (${effectiveSlots + 1}-period bank, ${dailyMaxLoad} per day)...`);
+    strategy = new RotatingDropStrategy(tracker, config, logger, rng);
   } else {
-    if (config.scheduleType === "modified_block" || config.scheduleType === "rotating_drop") {
-      logger.warn(`Schedule type '${config.scheduleType}' is not yet fully implemented — using Standard strategy as base.`);
-    }
     logger.info("Engaging Standard Strategy Engine...");
     strategy = new StandardStrategy(tracker, config, logger, rng);
   }
@@ -744,6 +782,7 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
   const isAB = config.scheduleType === "ab_block";
   const is4x4 = config.scheduleType === "4x4_block";
   const isTri = config.scheduleType === "trimester";
+  const isMod = config.scheduleType === "modified_block";
 
   teachingPeriodIds.forEach(pid => {
     const pObj = periodList.find(p => p.id === pid) || ({} as Period);
@@ -764,6 +803,12 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
        const t2Seats = sections.filter(s => s.period === `T2-ALL-${pid}` && !s.hasConflict).reduce((sum, s) => sum + (s.enrollment||0), 0);
        const t3Seats = sections.filter(s => s.period === `T3-ALL-${pid}` && !s.hasConflict).reduce((sum, s) => sum + (s.enrollment||0), 0);
        seats = Math.round((t1Seats + t2Seats + t3Seats) / 3);
+    } else if (isMod) {
+       // Modified block: a period is either a standard-day slot or a block-day slot.
+       // Average standard + block coverage to reflect the weekly student load.
+       const stdSeats = sections.filter(s => s.period === `STD-ALL-${pid}` && !s.hasConflict).reduce((sum, s) => sum + (s.enrollment||0), 0);
+       const blkSeats = sections.filter(s => s.period === `BLK-ALL-${pid}` && !s.hasConflict).reduce((sum, s) => sum + (s.enrollment||0), 0);
+       seats = stdSeats + blkSeats; // report combined coverage for this period slot
     } else {
        const univPid = pid === "WIN" ? "WIN" : `FY-ALL-${pid}`;
        seats = sections.filter(s => s.period === univPid && !s.hasConflict).reduce((sum, s) => sum + (s.enrollment||0), 0);
@@ -834,8 +879,18 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
       const raw = strId.replace("T1-ALL-", "").replace("T2-ALL-", "").replace("T3-ALL-", "");
       return `${strId.substring(0, 2)}-${isNaN(Number(raw)) ? raw : Number(raw)}`;
     }
-    
-    return strId; 
+
+    if (strId.startsWith("STD-ALL-")) {
+      const raw = strId.replace("STD-ALL-", "");
+      return `STD-${isNaN(Number(raw)) ? raw : Number(raw)}`;
+    }
+
+    if (strId.startsWith("BLK-ALL-")) {
+      const raw = strId.replace("BLK-ALL-", "");
+      return `BLK-${isNaN(Number(raw)) ? raw : Number(raw)}`;
+    }
+
+    return strId;
   };
 
   sections.forEach(sec => {

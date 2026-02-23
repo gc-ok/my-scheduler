@@ -21,7 +21,8 @@ const SELECT_STYLE = { ...INPUT_STYLE, appearance: "auto" as const };
 export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepProps) {
   const isBlock = c.scheduleType === "ab_block" || c.scheduleType === "4x4_block";
   const isTri = c.scheduleType === "trimester";
-  
+  const isTeam = c.scheduleType === "ms_team";
+
   const isElem = c.schoolType === "elementary" || c.schoolType === "k8";
   const defaultLoad = isBlock ? 6 : (isTri ? 12 : 5);
 
@@ -60,6 +61,34 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
   
   const [tl, setTl] = useState(c.targetLoad ?? defaultLoad);
   const [expanded, setExpanded] = useState<number | null>(null);
+
+  // TEAM-BASED STATE (ms_team)
+  const DEFAULT_TEAMS = [
+    { id: "team_a", name: "Team A", gradeLevel: "6", studentCount: 120,
+      departments: [
+        { id: "english", name: "English/ELA", roomType: "regular" },
+        { id: "math",    name: "Math",         roomType: "regular" },
+        { id: "science", name: "Science",       roomType: "lab"     },
+        { id: "social",  name: "Social Studies",roomType: "regular" },
+      ]
+    },
+    { id: "team_b", name: "Team B", gradeLevel: "7", studentCount: 120,
+      departments: [
+        { id: "english", name: "English/ELA", roomType: "regular" },
+        { id: "math",    name: "Math",         roomType: "regular" },
+        { id: "science", name: "Science",       roomType: "lab"     },
+        { id: "social",  name: "Social Studies",roomType: "regular" },
+      ]
+    },
+  ];
+  const [teams, setTeams] = useState<any[]>(
+    c.teams && c.teams.length > 0 ? c.teams : DEFAULT_TEAMS
+  );
+  const upTeam = (i: number, f: string, v: any) => { const t = [...teams]; t[i] = { ...t[i], [f]: v }; setTeams(t); };
+  const upTeamDept = (ti: number, di: number, f: string, v: any) => {
+    const t = [...teams]; const deps = [...(t[ti].departments || [])]; deps[di] = { ...deps[di], [f]: v };
+    t[ti] = { ...t[ti], departments: deps }; setTeams(t);
+  };
 
   // ELEMENTARY COHORT STATE
   // parallelGroupId: cohorts sharing the same group ID are scheduled for the same subject at the same period
@@ -104,6 +133,86 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
   const coreDepts = depts.filter(d => d.required);
 
   const cont = () => {
+    if (isTeam) {
+      // TEAM-BASED LOGIC — one cohort per team, teachers grouped by team + department
+      const teachers: any[] = [];
+      const courses: any[] = [];
+      const cohorts: any[] = [];
+      const builtTeams: any[] = [];
+      const rooms: any[] = [];
+
+      teams.forEach((team, ti) => {
+        const teamId = team.id || `team_${ti}`;
+        const cohortId = `${teamId}_cohort`;
+
+        // One cohort per team (represents the shared student group)
+        cohorts.push({
+          id: cohortId,
+          name: `${team.name} Students`,
+          gradeLevel: team.gradeLevel || String(6 + ti),
+          teacherId: `${teamId}_t0`,
+          studentCount: team.studentCount || 120,
+        });
+
+        const teamTeacherIds: string[] = [];
+
+        (team.departments || []).forEach((dept: any, di: number) => {
+          const teacherId = `${teamId}_${dept.id}_t${di}`;
+          teamTeacherIds.push(teacherId);
+
+          teachers.push({
+            id: teacherId,
+            name: `${team.name} ${dept.name} Teacher`,
+            departments: [dept.id],
+            teamId,
+            planPeriods: planP,
+            requiresLab: dept.roomType === "lab",
+            requiresGym: dept.roomType === "gym",
+          });
+
+          // One course per department per team (cohort-bound)
+          courses.push({
+            id: `${teamId}_${dept.id}`,
+            name: dept.name,
+            department: dept.id,
+            sections: 1,
+            maxSize: team.studentCount || 120,
+            required: true,
+            roomType: dept.roomType || "regular",
+            gradeLevel: team.gradeLevel || String(6 + ti),
+          });
+        });
+
+        builtTeams.push({ id: teamId, name: team.name, gradeLevel: team.gradeLevel, teacherIds: teamTeacherIds, cohortId, studentCount: team.studentCount || 120 });
+      });
+
+      // Rooms: one per teacher + labs/gyms for specialised departments
+      const allDeptRoomTypes = teams.flatMap((t: any) => (t.departments || []).map((d: any) => d.roomType || "regular"));
+      const labCount = allDeptRoomTypes.filter((r: string) => r === "lab").length;
+      const gymCount = allDeptRoomTypes.filter((r: string) => r === "gym").length;
+      let rIdx = 0;
+      teachers.forEach(t => {
+        if (!t.requiresLab && !t.requiresGym) rooms.push({ id: `room_${rIdx++}`, name: `Room ${101 + rIdx}`, type: "regular", capacity: ms });
+      });
+      for (let i = 0; i < labCount; i++) rooms.push({ id: `lab_${i}`, name: `Lab ${i + 1}`, type: "lab", capacity: ms });
+      for (let i = 0; i < gymCount; i++) rooms.push({ id: `gym_${i}`, name: `Gym ${i + 1}`, type: "gym", capacity: ms * 2 });
+
+      setConfig({
+        ...c,
+        useTeams: true,
+        teams: builtTeams,
+        cohorts,
+        teachers,
+        courses,
+        rooms,
+        studentCount: teams.reduce((sum: number, t: any) => sum + (t.studentCount || 120), 0),
+        maxClassSize: ms,
+        studentCountQuick: sc,
+      });
+      onNext();
+      return;
+    }
+
     if (isElem) {
       // ELEMENTARY LOGIC — build teachers from cohorts + specials courses
       const teachers: any[] = [];
@@ -154,7 +263,7 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
         rooms,
         studentCount: sc,
         maxClassSize: ms,
-        students: { count: sc },
+        studentCountQuick: sc,
       });
       onNext();
       return;
@@ -183,9 +292,119 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
     for (let i = 0; i < rc; i++) rooms.push({ id: `room_${i + 1}`, name: `Room ${101 + i}`, type: "regular", capacity: ms });
     for (let i = 0; i < lc; i++) rooms.push({ id: `lab_${i + 1}`, name: `Lab ${i + 1}`, type: "lab", capacity: ms });
     for (let i = 0; i < gc; i++) rooms.push({ id: `gym_${i + 1}`, name: `Gym ${i + 1}`, type: "gym", capacity: ms * 2 });
-    setConfig({ ...c, departments: depts, studentCount: sc, roomCount: rc, labCount: lc, gymCount: gc, maxClassSize: ms, targetLoad: validLoad, teachers, courses, rooms, students: { count: sc } });
+    setConfig({ ...c, departments: depts, studentCount: sc, roomCount: rc, labCount: lc, gymCount: gc, maxClassSize: ms, targetLoad: validLoad, teachers, courses, rooms, studentCountQuick: sc });
     onNext();
   };
+
+  if (isTeam) {
+    const GRADE_OPTIONS = ["5","6","7","8","9"];
+    return (
+      <div>
+        <h2 style={{ color: COLORS.primary, marginBottom: 6 }}>Team-Based Setup</h2>
+        <p style={{ color: COLORS.textLight, marginBottom: 20 }}>
+          Define your interdisciplinary teams. Each team shares a student cohort and gets a common planning period automatically blocked by the engine.
+        </p>
+        <div style={{ maxWidth: 780 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 20 }}>
+            <NumInput label="Max Class Size" min={10} max={200} value={ms} onChange={setMs} />
+            <NumInput label="Total Students" min={10} max={5000} value={sc} onChange={setSc} />
+          </div>
+
+          {teams.map((team, ti) => (
+            <div key={team.id} style={{ marginBottom: 16, border: `1px solid ${COLORS.lightGray}`, borderRadius: 10, overflow: "hidden" }}>
+              {/* Team header */}
+              <div style={{ display: "flex", gap: 8, padding: "10px 12px", background: COLORS.offWhite, alignItems: "center", flexWrap: "wrap" }}>
+                <input
+                  value={team.name}
+                  onChange={e => upTeam(ti, "name", e.target.value)}
+                  placeholder="Team name"
+                  style={{ ...INPUT_STYLE, flex: 1, minWidth: 100 }}
+                />
+                <select
+                  value={team.gradeLevel || "6"}
+                  onChange={e => upTeam(ti, "gradeLevel", e.target.value)}
+                  style={{ ...SELECT_STYLE, width: 90 }}
+                >
+                  {GRADE_OPTIONS.map(g => <option key={g} value={g}>Grade {g}</option>)}
+                </select>
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <input
+                    type="number" min={10} max={500}
+                    value={team.studentCount || 120}
+                    onChange={e => upTeam(ti, "studentCount", parseInt(e.target.value) || 120)}
+                    style={{ ...SMALL_INPUT, width: 60 }}
+                  />
+                  <span style={{ fontSize: 12, color: COLORS.textLight }}>students</span>
+                </div>
+                <button
+                  aria-label={`Remove team ${team.name}`}
+                  onClick={() => setTeams(teams.filter((_: any, j: number) => j !== ti))}
+                  style={{ cursor: "pointer", color: COLORS.danger, background: "none", border: "none", fontSize: 18, lineHeight: 1, fontFamily: "inherit", marginLeft: "auto" }}
+                >×</button>
+              </div>
+
+              {/* Departments in this team */}
+              <div style={{ padding: "10px 12px", background: COLORS.white }}>
+                <p style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 8 }}>Subjects taught on this team (one teacher each):</p>
+                {(team.departments || []).map((dept: any, di: number) => (
+                  <div key={di} style={{ display: "flex", gap: 8, marginBottom: 6, alignItems: "center" }}>
+                    <input
+                      value={dept.name}
+                      onChange={e => upTeamDept(ti, di, "name", e.target.value)}
+                      placeholder="Subject name"
+                      style={{ ...INPUT_STYLE, flex: 1 }}
+                    />
+                    <select
+                      value={dept.roomType || "regular"}
+                      onChange={e => upTeamDept(ti, di, "roomType", e.target.value)}
+                      style={{ ...SELECT_STYLE, width: 90, fontSize: 12, padding: "5px 8px" }}
+                    >
+                      <option value="regular">Room</option>
+                      <option value="lab">Lab</option>
+                      <option value="gym">Gym</option>
+                    </select>
+                    <button
+                      aria-label={`Remove ${dept.name}`}
+                      onClick={() => upTeam(ti, "departments", team.departments.filter((_: any, j: number) => j !== di))}
+                      style={{ cursor: "pointer", color: COLORS.danger, background: "none", border: "none", fontSize: 16, lineHeight: 1, fontFamily: "inherit" }}
+                    >×</button>
+                  </div>
+                ))}
+                <Btn variant="ghost" small onClick={() => upTeam(ti, "departments", [...(team.departments || []), { id: `dept_${Date.now()}`, name: "", roomType: "regular" }])}>
+                  + Add Subject
+                </Btn>
+              </div>
+            </div>
+          ))}
+
+          <Btn variant="ghost" small onClick={() => setTeams([...teams, {
+            id: `team_${Date.now()}`, name: `Team ${String.fromCharCode(65 + teams.length)}`,
+            gradeLevel: "6", studentCount: 120,
+            departments: [
+              { id: "english", name: "English/ELA", roomType: "regular" },
+              { id: "math",    name: "Math",         roomType: "regular" },
+              { id: "science", name: "Science",       roomType: "lab"     },
+              { id: "social",  name: "Social Studies",roomType: "regular" },
+            ]
+          }])}>
+            + Add Team
+          </Btn>
+
+          <div style={{ marginTop: 16, padding: "10px 14px", borderRadius: 8, background: COLORS.accentLight, fontSize: 12, color: COLORS.darkGray }}>
+            <strong>Engine will generate:</strong>&nbsp;
+            {teams.length} cohorts × {teams.reduce((n: number, t: any) => Math.max(n, (t.departments || []).length), 0)} subjects
+            &nbsp;= <strong>{teams.reduce((n: number, t: any) => n + (t.departments || []).length, 0)} sections</strong>.
+            Each team gets a common planning period automatically.
+          </div>
+        </div>
+
+        <div style={{ marginTop: 24, display: "flex", justifyContent: "space-between" }}>
+          <Btn variant="secondary" onClick={onBack}>← Back</Btn>
+          <Btn onClick={cont} disabled={teams.length === 0}>Continue →</Btn>
+        </div>
+      </div>
+    );
+  }
 
   if (isElem) {
     const coreCourses  = elemCourses.filter(ec => !ec.isSpecial);

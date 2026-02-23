@@ -72,7 +72,7 @@ export function CSVUploadStep({ config: c, setConfig, onNext, onBack }: StepProp
     if (pd.courses?.rows) pd.courses.rows.forEach((r, i) => { const m = cm.courses || {}; courses.push({ id: `c_${i}`, name: m.name !== undefined ? r[m.name] : `Course ${i+1}`, department: m.department !== undefined ? r[m.department] : "general", maxSize: m.maxSize !== undefined ? parseInt(r[m.maxSize]) || 30 : 30, sections: m.sections !== undefined ? parseInt(r[m.sections]) || 1 : 1, required: m.required !== undefined ? r[m.required]?.toLowerCase() === "yes" : true }); });
     if (pd.rooms?.rows) pd.rooms.rows.forEach((r, i) => { const m = cm.rooms || {}; rooms.push({ id: `r_${i}`, name: m.name !== undefined ? r[m.name] : `Room ${i+1}`, type: m.type !== undefined ? r[m.type] : "regular", capacity: m.capacity !== undefined ? parseInt(r[m.capacity]) || 30 : 30 }); });
     else { for (let i = 0; i < 20; i++) rooms.push({ id: `r_${i}`, name: `Room ${101+i}`, type: "regular", capacity: 30 }); rooms.push({ id: "lab_0", name: "Lab 1", type: "lab", capacity: 30 }); rooms.push({ id: "lab_1", name: "Lab 2", type: "lab", capacity: 30 }); }
-    setConfig({ ...c, teachers, courses, rooms, cohorts, students: { count: 300 } }); onNext();
+    setConfig({ ...c, teachers, courses, rooms, cohorts, studentCountQuick: 300 }); onNext();
   };
   const ft = fts.find(f => f.id === af)!;
   return (

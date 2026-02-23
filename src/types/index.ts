@@ -9,6 +9,16 @@ export interface Teacher {
   travelTime?: number;
   requiresLab?: boolean;   // Needs a lab room (replaces hardcoded "science" check)
   requiresGym?: boolean;   // Needs a gym room (replaces hardcoded "pe" check)
+  teamId?: string;         // Team-based scheduling: which interdisciplinary team this teacher belongs to
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  gradeLevel: string;
+  teacherIds: string[];   // All teachers on this interdisciplinary team
+  cohortId: string;       // The student cohort that travels with this team
+  studentCount: number;
 }
 
 export interface Room {
@@ -235,8 +245,12 @@ export interface WizardState {
   // Grades that use cohort-based scheduling. E.g. ["9"] for freshman cohorts, ["6","7","8"] for all MS grades.
   cohortGrades?: string[];
   useTeams?: boolean;
+  teams?: Team[];
   // Custom school type grade range (e.g. a 5-8 school in Oklahoma)
   customGradeRange?: { from: string; to: string };
+
+  // Modified block: number of periods on block days (standard days use periodsCount)
+  modifiedBlockPeriods?: number;
 
   // Quick-setup wizard helpers
   departments?: { id: string; name: string; teacherCount: number; required: boolean; roomType: string; teacherNames: string[]; teacherFloaters?: boolean[] }[];
@@ -244,7 +258,7 @@ export interface WizardState {
   labCount?: number;
   gymCount?: number;
   targetLoad?: number;
-  students?: { count: number };
+  studentCountQuick?: number; // quick-setup student count helper (replaces duplicate students field)
 }
 
 // --- EngineConfig: resolved shape consumed by the scheduling engine ---
@@ -299,7 +313,9 @@ export interface EngineConfig {
   elementaryModel?: 'unified_self' | 'unified_dept' | 'split_band';
   cohortGrades?: string[];
   useTeams?: boolean;
+  teams?: Team[];
   customGradeRange?: { from: string; to: string };
+  modifiedBlockPeriods?: number;
 
   // Regen overrides
   lockedSections?: Section[];
