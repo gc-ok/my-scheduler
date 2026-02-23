@@ -259,6 +259,25 @@ export interface WizardState {
   gymCount?: number;
   targetLoad?: number;
   studentCountQuick?: number; // quick-setup student count helper (replaces duplicate students field)
+
+  // CSV upload metadata
+  csvUploadType?: 'requests' | 'course-info';
+  csvData?: string[][];
+  csvRequestFormat?: 'multi-row' | 'wide';
+  csvHeaderRow?: number;       // 0-indexed row containing column headers
+  csvDataStartRow?: number;    // 0-indexed row where actual data begins
+  // Maps column index (string key) to field name, e.g. { "0": "student_name", "2": "course_name" }
+  // Wide-format course columns use "course_col:N" with metadata stored in csvCourseColMeta
+  csvColumnMappings?: Record<string, string>;
+  // Wide-format per-course-column metadata: priority number, 'equal', or 'alternate' + optional group
+  csvCourseColMeta?: Record<string, { mode: 'priority' | 'equal' | 'alternate'; priority?: number; alternateGroup?: string }>;
+  // Staging answers — course requests
+  csvEnforceSectionCaps?: boolean;
+  csvDefaultMaxSize?: number;
+  csvUseAlternates?: boolean;
+  // Staging answers — course info
+  csvDefaultSections?: number;
+  csvFloaterTeachers?: string[];  // teacher names explicitly marked as floaters
 }
 
 // --- EngineConfig: resolved shape consumed by the scheduling engine ---

@@ -6,7 +6,7 @@ import {
   MultiScheduleStepWrapper,
   SchoolTypeStep, ScheduleStructureStep, ScheduleTypeStep, BellScheduleStep, LunchStep,
   PlanPLCStep, WINTimeStep, RecessStep, DataInputStep, GenericInputStep,
-  CSVUploadStep, ConstraintsStep
+  CSVUploadStep, CSVMappingStep, ConstraintsStep
 } from "./steps";
 
 import { WizardState } from "../../types";
@@ -38,13 +38,17 @@ export default function WizardController({ step, setStep, config, setConfig, onC
   const isElemType = config.schoolType === "elementary" || config.schoolType === "k8" || customHasElem;
   const stepLabel10 = config.inputMode === "csv" ? "CSV Upload" : (isElemType ? "Cohort Setup" : "Quick Setup");
 
+  const isCsvMode = config.inputMode === "csv";
+  const constraintsStep = isCsvMode ? 12 : 11;
+
   const allSteps = [
     { id: 1, label: "School Type" }, { id: 2, label: "Schedule Structure" }, { id: 3, label: "Schedule Type" }, { id: 4, label: "Bell Schedule" },
     { id: 5, label: "Lunch" }, { id: 6, label: "Plan & PLC" }, { id: 7, label: "WIN Time" },
     ...(showRecess ? [{ id: 8, label: "Recess" }] : []),
     { id: 9, label: "Data Input" },
     { id: 10, label: stepLabel10 },
-    { id: 11, label: "Constraints" }
+    ...(isCsvMode ? [{ id: 11, label: "CSV Mapping" }] : []),
+    { id: constraintsStep, label: "Constraints" },
   ];
 
   return (
@@ -149,9 +153,11 @@ export default function WizardController({ step, setStep, config, setConfig, onC
           <RecessStep config={config} setConfig={setConfig} onNext={() => setStep(9)} onBack={() => setStep(7)} />
         ))}
         {step === 9 && <DataInputStep config={config} setConfig={setConfig} onNext={() => setStep(10)} onBack={() => setStep(showRecess ? 8 : 7)} />}
-        {step === 10 && config.inputMode === "csv" && <CSVUploadStep config={config} setConfig={setConfig} onNext={() => setStep(11)} onBack={() => setStep(9)} />}
-        {step === 10 && config.inputMode !== "csv" && <GenericInputStep config={config} setConfig={setConfig} onNext={() => setStep(11)} onBack={() => setStep(9)} />}
-        {step === 11 && <ConstraintsStep config={config} setConfig={setConfig} onNext={onComplete} onBack={() => setStep(10)} />}
+        {step === 10 && isCsvMode && <CSVUploadStep config={config} setConfig={setConfig} onNext={() => setStep(11)} onBack={() => setStep(9)} />}
+        {step === 10 && !isCsvMode && <GenericInputStep config={config} setConfig={setConfig} onNext={() => setStep(11)} onBack={() => setStep(9)} />}
+        {step === 11 && isCsvMode && <CSVMappingStep onNext={() => setStep(12)} onBack={() => setStep(10)} />}
+        {step === 11 && !isCsvMode && <ConstraintsStep config={config} setConfig={setConfig} onNext={onComplete} onBack={() => setStep(10)} />}
+        {step === 12 && isCsvMode && <ConstraintsStep config={config} setConfig={setConfig} onNext={onComplete} onBack={() => setStep(11)} />}
       </div>
     </>
   );

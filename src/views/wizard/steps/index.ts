@@ -11,4 +11,5 @@ export { RecessStep } from "./RecessStep";
 export { DataInputStep } from "./DataInputStep";
 export { GenericInputStep } from "./GenericInputStep";
 export { CSVUploadStep } from "./CSVUploadStep";
+export { CSVMappingStep } from "./CSVMappingStep";
 export { ConstraintsStep } from "./ConstraintsStep";
