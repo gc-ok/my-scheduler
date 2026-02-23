@@ -21,6 +21,7 @@ export default function App() {
     errorState,
     pendingRestore,
     setStep,
+    setConfig,
     setSchedule,
   } = useScheduleStore();
 
@@ -125,7 +126,7 @@ export default function App() {
   return (
     <div className={css.root}>
       {errorState && <ErrorModal />}
-      <WizardController onComplete={generate} />
+      <WizardController step={step} setStep={setStep} config={config} setConfig={setConfig} onComplete={generate} />
     </div>
   );
 }
