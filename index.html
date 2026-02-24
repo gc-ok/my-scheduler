@@ -79,35 +79,51 @@
         .hero {
             text-align: center;
             padding: 80px 24px 64px;
-            background: linear-gradient(168deg, var(--primary-dark) 0%, var(--primary) 50%, var(--primary-light) 100%);
-            color: var(--white);
+            background: transparent; /* Changed from solid gradient */
+            color: var(--primary-dark); /* Changed from white */
         }
+
         .hero-badge {
             display: inline-block;
-            background: rgba(255,255,255,0.15);
-            border: 1px solid rgba(255,255,255,0.25);
-            color: var(--accent-light);
+            background: rgba(27, 73, 101, 0.08); /* Adjusted for light background */
+            border: 1px solid rgba(27, 73, 101, 0.2);
+            color: var(--primary); /* Adjusted from accent-light */
             font-size: 12px;
-            font-weight: 600;
+            font-weight: 700;
             padding: 5px 14px;
             border-radius: 20px;
             margin-bottom: 24px;
             letter-spacing: 0.5px;
             text-transform: uppercase;
         }
+
         .hero h1 {
             font-size: clamp(2.2rem, 5vw, 3.4rem);
             font-weight: 800;
             line-height: 1.15;
             margin-bottom: 20px;
             letter-spacing: -0.5px;
+            color: var(--primary-dark);
         }
+
         .hero p {
             font-size: 1.15rem;
             max-width: 620px;
             margin: 0 auto 36px;
-            color: rgba(255,255,255,0.85);
+            color: var(--text); /* Changed to dark text */
             line-height: 1.7;
+        }
+
+        /* Update hero buttons to contrast with the light background */
+        .btn-hero-primary {
+            background: var(--primary);
+            color: var(--white);
+        }
+
+        .btn-hero-ghost {
+            background: rgba(27, 73, 101, 0.05);
+            color: var(--primary);
+            border: 1px solid rgba(27, 73, 101, 0.2);
         }
         .hero-actions {
             display: flex;
@@ -130,15 +146,7 @@
             transform: translateY(-2px);
             box-shadow: 0 8px 24px rgba(0,0,0,0.2);
         }
-        .btn-hero-primary {
-            background: var(--white);
-            color: var(--primary);
-        }
-        .btn-hero-ghost {
-            background: rgba(255,255,255,0.12);
-            color: var(--white);
-            border: 1px solid rgba(255,255,255,0.3);
-        }
+
 
         /* ── STATS BAR ── */
         .stats-bar {
@@ -446,9 +454,62 @@
             .stats-bar { gap: 24px; }
             section { padding: 48px 20px; }
         }
+        /* ── DYNAMIC BACKGROUND ── */
+        .dynamic-bg-container {
+            position: fixed;
+            inset: 0 0 auto 0;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: -10;
+            height: 1000px; /* Matches the Hugo theme height */
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .dynamic-bg-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            margin: 0;
+            animation-duration: 20s;
+        }
+
+        /* Gradients to blend the bottom of the image into your page's background color */
+        .dynamic-bg-gradient-1 {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to top, var(--off-white), transparent);
+            mix-blend-mode: normal;
+        }
+
+        .dynamic-bg-gradient-2 {
+            position: absolute;
+            inset: 0;
+            /* Changed the top value from 0 opacity to 0.65 opacity to wash out the SVG */
+            background: linear-gradient(to top, var(--off-white) 10%, rgba(245, 247, 250, 0.70) 90%);
+            mix-blend-mode: normal;
+        }
+
+        /* The layer that blurs over the background on scroll */
+        .scroll-blur-layer {
+            position: fixed;
+            inset: 0;
+            z-index: -9;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            opacity: 0; /* Controlled by JS */
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
+    <div class="dynamic-bg-container">
+        <img class="dynamic-bg-img" src="/background.svg" alt="" role="presentation" />
+        <div class="dynamic-bg-gradient-1"></div>
+        <div class="dynamic-bg-gradient-2"></div>
+    </div>
+    <div id="scroll-blur-layer" class="scroll-blur-layer"></div>
 
     <!-- Nav -->
     <nav>
@@ -461,7 +522,7 @@
 
     <!-- Hero -->
     <section class="hero">
-        <div class="hero-badge">Free &amp; Open Source &mdash; Elementary · Middle · High School</div>
+        <div class="hero-badge">Free Beta: Elementary · Middle · High School</div>
         <h1>Build Your Master Schedule<br/>in Minutes, Not Weeks</h1>
         <p>
             A full-spectrum K-12 scheduling engine — from self-contained elementary cohorts to high school block
@@ -791,8 +852,20 @@
 
     <!-- Footer -->
     <footer>
-        <p>K-12 Master Scheduler &mdash; Built by <a href="https://gceducationanalytics.com" target="_blank" rel="noopener">GC Education Analytics</a></p>
+        <p>
+            K-12 Master Scheduler &mdash; Built by <a href="https://gceducationanalytics.com" target="_blank" rel="noopener">GC Education Analytics</a> |
+            <a href="/privacy.html" target="_blank">Privacy Policy</a>
+        </p>
     </footer>
-
+    <script>
+        window.addEventListener('scroll', function () {
+            var scroll = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+            var blurLayer = document.getElementById('scroll-blur-layer');
+            if(blurLayer) {
+                // Fades in the blur based on scroll position, capped at 1 (100% opacity)
+                blurLayer.style.opacity = Math.min(scroll / 300, 1);
+            }
+        });
+    </script>
 </body>
 </html>

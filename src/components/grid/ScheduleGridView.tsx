@@ -3,9 +3,8 @@ import { COLORS } from "../../utils/theme";
 import MasterGrid from "./MasterGrid";
 import TeacherGrid from "./TeacherGrid";
 import RoomGrid from "./RoomGrid";
-import { generateSchedule } from "../../core/engine";
 import { ScheduleConfig, Section, Teacher, Period, ScheduleResult, SingleScheduleResult } from "../../types";
-import { buildScheduleConfig } from "../../utils/scheduleConfig";
+import { ExportFormat } from "../../hooks/useScheduleExport";
 import { Tabs, ContextualSidePanel } from "../ui/CoreUI";
 
 // --- STYLES & HELPERS ---
@@ -240,11 +239,12 @@ interface ScheduleGridViewProps {
   setSchedule: (s: ScheduleResult) => void;
   onRegenerate: (activeVariantId: string) => void;
   onBackToConfig: () => void;
-  onExport: () => void;
+  onExport: (format: ExportFormat) => void;
 }
 
 export default function ScheduleGridView({ schedule, config, setSchedule, onRegenerate, onBackToConfig, onExport }: ScheduleGridViewProps) {
   const [vm, setVm] = useState("grid");
+  const [exportFmt, setExportFmt] = useState<ExportFormat>('generic');
   // Use the first variant's ID as the initial state so multi-variant schedules
   // don't start on 'default' (which doesn't exist when structure === 'multiple').
   const [activeVariantId, setActiveVariantId] = useState<string>(
@@ -261,7 +261,7 @@ export default function ScheduleGridView({ schedule, config, setSchedule, onRege
 
   // Modals' state
   const [plcGroups, setPlcGroups] = useState<any[]>([]);
-  const [teacherAvail, setTeacherAvail] = useState<any[]>([]);
+  const [teacherAvail] = useState<any[]>([]);
   const [showPLCModal, setShowPLCModal] = useState(false);
   const [availTeacher, setAvailTeacher] = useState<Teacher | null>(null);
   const [editTeacher, setEditTeacher] = useState<Teacher | null>(null);
@@ -358,29 +358,9 @@ export default function ScheduleGridView({ schedule, config, setSchedule, onRege
     pushH(newVariantState);
     setActiveVariant(newVariantState);
     setPanelSection(null); // Close panel after action
-    notify(`✅ Moved ${section.courseName} to ${periodList.find(p=>p.id===periodId)?.label}`, "success");
+    notify(`✅ Moved ${section.courseName} to ${periodList.find((p: Period)=>p.id===periodId)?.label}`, "success");
   };
 
-  const triggerRegenWithConstraints = (updatedPLCs = plcGroups, updatedAvail = teacherAvail, updatedTeachers = teachers) => {
-    // This function is complex and its multi-variant logic needs careful consideration.
-    // For now, it will refactor based on the global config, which may not be ideal.
-    // This can be improved in a later step.
-    console.warn("triggerRegenWithConstraints may not work as expected with multiple variants yet.");
-    const newConfig = {
-      ...config,
-      plcEnabled: updatedPLCs.length > 0,
-      plcGroups: updatedPLCs,
-      teacherAvailability: updatedAvail,
-      teachers: updatedTeachers, 
-      maxClassSize: (config.maxClassSize || 30) + 1 
-    };
-    // The `generateSchedule` function expects a single EngineConfig, but buildScheduleConfig now returns a complex object.
-    // This utility needs to be bypassed or adapted for this to work.
-    // const result = generateSchedule(buildScheduleConfig(newConfig));
-    // setSchedule(result);
-    // pushH(result.sections);
-    notify("Schedule refactored with new constraints", "success");
-  };
 
   const handlePeriodTimeChange = (pid: string | number, part: 'start' | 'end', value: string) => {
     const newPeriods = [...periodList];
@@ -498,35 +478,25 @@ export default function ScheduleGridView({ schedule, config, setSchedule, onRege
       )}
 
       {editTeacher && (
-        <EditTeacherModal teacher={editTeacher} onClose={() => setEditTeacher(null)} onSave={(updatedTeacher) => {
-            const newTeachers = (teachers as Teacher[]).map(t => t.id === updatedTeacher.id ? updatedTeacher : t);
-            setEditTeacher(null); 
-            // This is a complex action that affects all variants, so it needs a more robust solution
-            // For now, we'll just notify the user.
+        <EditTeacherModal teacher={editTeacher} onClose={() => setEditTeacher(null)} onSave={() => {
+            setEditTeacher(null);
             notify("Teacher updated. Full refactor needed for this change.", "warning");
-            // triggerRegenWithConstraints(plcGroups, teacherAvail, newTeachers);
           }}
         />
       )}
 
       {showPLCModal && (
-        <PLCOrganizerModal teachers={teachers} periods={periodList} plcGroups={plcGroups} onClose={() => setShowPLCModal(false)} onSave={(newGroups) => {
-            // setPlcGroups(newGroups); 
-            setShowPLCModal(false); 
-            // This is also a cross-variant change.
+        <PLCOrganizerModal teachers={teachers} periods={periodList} plcGroups={plcGroups} onClose={() => setShowPLCModal(false)} onSave={() => {
+            setShowPLCModal(false);
             notify("PLC Groups updated. Full refactor needed for this change.", "warning");
-            // triggerRegenWithConstraints(newGroups, teacherAvail);
           }}
         />
       )}
 
       {availTeacher && (
-        <TeacherAvailabilityModal teacher={availTeacher} periods={periodList} teacherAvail={teacherAvail} onClose={() => setAvailTeacher(null)} onSave={(blocked) => {
-            const newAvail = [...teacherAvail.filter(a => a.teacherId !== availTeacher.id), { teacherId: availTeacher.id, blockedPeriods: blocked }];
-            // setTeacherAvail(newAvail); 
-            setAvailTeacher(null); 
+        <TeacherAvailabilityModal teacher={availTeacher} periods={periodList} teacherAvail={teacherAvail} onClose={() => setAvailTeacher(null)} onSave={() => {
+            setAvailTeacher(null);
             notify("Teacher availability updated. Full refactor needed.", "warning");
-            // triggerRegenWithConstraints(plcGroups, newAvail);
           }}
         />
       )}
@@ -538,7 +508,17 @@ export default function ScheduleGridView({ schedule, config, setSchedule, onRege
           <button onClick={() => onRegenerate(activeVariantId)} style={btnStyle("transparent", COLORS.primary, false, `1px solid ${COLORS.primary}`)}>🔀 Quick Regen</button>
           <button onClick={addBlankClass} style={btnStyle(COLORS.success, COLORS.white)}>➕ Add Class</button>
           <button onClick={() => setShowPLCModal(true)} style={btnStyle(COLORS.accent, COLORS.white)}>🤝 Organize PLCs</button>
-          <button onClick={onExport} style={btnStyle(COLORS.primary, COLORS.white)}>⬇️ Export CSV</button>
+          <select
+            value={exportFmt}
+            onChange={e => setExportFmt(e.target.value as ExportFormat)}
+            style={{ padding: "6px 8px", borderRadius: 6, border: `1px solid ${COLORS.lightGray}`, fontSize: 12, fontFamily: "inherit", background: COLORS.white, color: COLORS.text }}
+            title="Export format"
+          >
+            <option value="generic">Generic CSV</option>
+            <option value="powerschool">PowerSchool</option>
+            <option value="infinite_campus">Infinite Campus</option>
+          </select>
+          <button onClick={() => onExport(exportFmt)} style={btnStyle(COLORS.primary, COLORS.white)}>⬇️ Export CSV</button>
         </div>
         <div style={{ fontSize: 12, color: COLORS.textLight }}>
           {plcGroups.length} PLC Groups · {teacherAvail.length} Custom Availabilities

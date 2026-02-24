@@ -60,8 +60,8 @@ self.onmessage = (e: MessageEvent<WorkerPayload>) => {
           self.postMessage({ status: 'PROGRESS', message: `${variantDefs[i].name}: ${msg}`, percentage: scaledPct });
         });
         
-        const { logs, placementHistory, ...leanResult } = result;
-        finalResult.variants[variantId] = leanResult as SingleScheduleResult;
+        const { logs, placementHistory, periodList, ...leanResult } = result;
+        finalResult.variants[variantId] = { ...leanResult, periods: periodList } as unknown as SingleScheduleResult;
       }
 
       self.postMessage({ status: 'SUCCESS', data: finalResult });
@@ -81,13 +81,13 @@ self.onmessage = (e: MessageEvent<WorkerPayload>) => {
         });
       }
 
-      const { logs, placementHistory, ...leanResult } = result;
-      
+      const { logs, placementHistory, periodList, ...leanResult } = result;
+
       const finalResult: ScheduleResult = {
         structure: 'single',
         variantDefs,
         variants: {
-          'default': leanResult as SingleScheduleResult,
+          'default': { ...leanResult, periods: periodList } as unknown as SingleScheduleResult,
         },
       };
       self.postMessage({ status: 'SUCCESS', data: finalResult });

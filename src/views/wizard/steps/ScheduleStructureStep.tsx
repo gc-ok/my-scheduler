@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { COLORS } from "../../../utils/theme";
 import { Btn, Card } from "../../../components/ui/CoreUI";
 import { WizardState, ScheduleVariantDef } from "../../../types";
@@ -112,7 +111,7 @@ export function ScheduleStructureStep({ config: c, setConfig, onNext, onBack }: 
       </div>
 
       {c.scheduleStructure === 'multiple' && (
-        <Card style={{ background: COLORS.background }}>
+        <Card style={{ background: COLORS.offWhite }}>
           <h3 style={{ marginTop: 0, color: COLORS.primary }}>Define Schedule Types</h3>
           <p style={{ color: COLORS.textLight, fontSize: 13, marginTop: -10, marginBottom: 20 }}>
             Create up to 3 different schedule types and assign the days of the week for each.

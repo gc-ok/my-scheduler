@@ -82,7 +82,7 @@ interface MasterGridProps {
   onConflictClick: (s: Section) => void;
 }
 
-export default function MasterGrid({ schedule, config, fSecs, dragItem, onDragStart, onDrop, togLock, setEditSection, onPeriodTimeChange }: MasterGridProps) {
+export default function MasterGrid({ schedule, config, fSecs, dragItem, onDragStart, onDrop, togLock, setEditSection, onPeriodTimeChange, onConflictClick }: MasterGridProps) {
   const { periodList: allP = [], periodStudentData: psd = {}, stats } = schedule;
   const studentCount = stats?.totalStudents || 0;
 

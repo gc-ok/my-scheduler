@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import useScheduleStore, { PendingRestore } from "../store/useScheduleStore";
+import useScheduleStore from "../store/useScheduleStore";
 import { WizardState, ScheduleResult } from "../types";
 import { loadFromDB, clearDB } from "../utils/db";
 

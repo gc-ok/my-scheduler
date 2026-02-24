@@ -143,7 +143,7 @@ export default function App() {
           </div>
         </div>
         <ErrorBoundary>
-          <ScheduleGridView schedule={schedule} config={config} setSchedule={setSchedule} onRegenerate={regen} onBackToConfig={() => setStep(9)} onExport={exportCSV} />
+          <ScheduleGridView schedule={schedule} config={config} setSchedule={setSchedule} onRegenerate={regen} onBackToConfig={() => setStep(9)} onExport={(fmt) => exportCSV(fmt)} />
         </ErrorBoundary>
       </div>
     );

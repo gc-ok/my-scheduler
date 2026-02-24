@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy Policy - K-12 Master Scheduler</title>
+    <style>
+        :root {
+            --primary: #1B4965;
+            --primary-light: #2D6A8F;
+            --primary-dark: #0F2D3F;
+            --secondary: #5FA8D3;
+            --accent: #62B6CB;
+            --accent-light: #BEE9E8;
+            --text: #1E293B;
+            --text-light: #64748B;
+            --off-white: #F5F7FA;
+            --light-gray: #E8ECF1;
+            --white: #FFFFFF;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            color: var(--text);
+            background: var(--off-white);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 48px;
+            background: var(--white);
+            border-bottom: 1px solid var(--light-gray);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            color: var(--primary);
+        }
+        .nav-brand img {
+            height: 32px;
+            object-fit: contain;
+        }
+        .nav-brand span {
+            font-weight: 700;
+            font-size: 16px;
+            letter-spacing: -0.3px;
+        }
+        .nav-link {
+            display: inline-block;
+            background: var(--primary);
+            color: var(--white);
+            font-size: 14px;
+            font-weight: 600;
+            padding: 10px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            transition: background 0.2s, transform 0.15s;
+        }
+        .nav-link:hover {
+            background: var(--primary-light);
+            transform: translateY(-1px);
+        }
+
+        section {
+            padding: 72px 24px;
+        }
+        .section-inner {
+            max-width: 800px;
+            margin: 0 auto;
+            background: var(--white);
+            padding: 48px;
+            border-radius: 12px;
+            border: 1px solid var(--light-gray);
+        }
+
+        .section-inner h1 {
+            font-size: clamp(1.8rem, 4vw, 2.5rem);
+            font-weight: 800;
+            line-height: 1.2;
+            margin-bottom: 12px;
+            letter-spacing: -0.4px;
+            color: var(--primary-dark);
+            border-bottom: 2px solid var(--accent-light);
+            padding-bottom: 16px;
+        }
+
+        .section-inner h2 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-top: 32px;
+            margin-bottom: 12px;
+        }
+
+        .section-inner p, .section-inner ul {
+            font-size: 1rem;
+            color: var(--text);
+            line-height: 1.7;
+            margin-bottom: 16px;
+        }
+        
+        .section-inner ul {
+            padding-left: 20px;
+        }
+
+        .section-inner a {
+            color: var(--primary);
+            font-weight: 600;
+            text-decoration: none;
+        }
+        .section-inner a:hover {
+            text-decoration: underline;
+        }
+
+        footer {
+            text-align: center;
+            padding: 32px 24px;
+            background: var(--primary-dark);
+            color: rgba(255,255,255,0.5);
+            font-size: 13px;
+        }
+        footer a {
+            color: rgba(255,255,255,0.7);
+            text-decoration: none;
+        }
+        footer a:hover {
+            color: var(--white);
+        }
+
+        .dynamic-bg-container {
+            position: fixed;
+            inset: 0 0 auto 0;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: -10;
+            height: 1000px;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .dynamic-bg-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            margin: 0;
+            animation-duration: 20s;
+        }
+
+        .dynamic-bg-gradient-1 {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to top, var(--off-white), transparent);
+            mix-blend-mode: normal;
+        }
+
+        .dynamic-bg-gradient-2 {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to top, var(--off-white) 10%, rgba(245, 247, 250, 0.70) 90%);
+            mix-blend-mode: normal;
+        }
+
+        .scroll-blur-layer {
+            position: fixed;
+            inset: 0;
+            z-index: -9;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            opacity: 0;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="dynamic-bg-container">
+        <img class="dynamic-bg-img" src="/background.svg" alt="" role="presentation" />
+        <div class="dynamic-bg-gradient-1"></div>
+        <div class="dynamic-bg-gradient-2"></div>
+    </div>
+    <div id="scroll-blur-layer" class="scroll-blur-layer"></div>
+
+    <nav>
+        <a href="/" class="nav-brand">
+            <img src="https://gceducationanalytics.com/images/gceducationlogo.png" alt="GC Education Analytics" onerror="this.style.display='none'" />
+            <span>K-12 Master Scheduler</span>
+        </a>
+        <a href="/app.html" class="nav-link">Launch Scheduler &rarr;</a>
+    </nav>
+
+    <section>
+        <div class="section-inner">
+            <h1>Privacy Policy</h1>
+            <p><em>Last updated: February 23, 2026</em></p>
+
+            <h2>Introduction</h2>
+            <p>Welcome to My Scheduler. We respect your privacy and are committed to protecting it. This Privacy Policy explains how we handle and protect your information when you use our application.</p>
+
+            <h2>Information We Collect</h2>
+            <p>Our application allows you to create and manage school schedules. The information we handle includes, but is not limited to:</p>
+            <ul>
+                <li><strong>School Configuration:</strong> School type, schedule structure, bell times, and other settings.</li>
+                <li><strong>Resource Data:</strong> Names and availability of teachers, room details, and student information.</li>
+                <li><strong>Schedule Data:</strong> Information related to lunch periods, recess, and other scheduled events.</li>
+            </ul>
+            <p>This information is provided by you directly through manual input or by uploading a CSV file.</p>
+
+            <h2>How We Use and Store Information</h2>
+            <p><strong>All schedule data you provide is processed and stored locally within your web browser using IndexedDB.</strong></p>
+            <ul>
+                <li>Your information is used solely for the purpose of generating and displaying schedules within the application.</li>
+                <li>Your data is not transmitted to, or stored on, any remote server. It remains on your computer.</li>
+                <li>The application includes a feature to restore your session, which reads previously saved data from your local browser storage. We do not use traditional tracking cookies for this purpose.</li>
+            </ul>
+
+            <h2>Usage Analytics</h2>
+            <p>To improve our application and understand how it is used, we use Google Analytics to collect anonymous usage statistics. This service helps us understand which features are most popular, how users interact with the application, and where we can make improvements.</p>
+            <ul>
+                <li><strong>Data Collected:</strong> Google Analytics collects data such as the pages you visit, the buttons you click, and the time you spend on the site. This data is aggregated and anonymized.</li>
+                <li><strong>Purpose:</strong> We use this data to analyze application usage and improve the user experience. We do not use it to personally identify you.</li>
+                <li><strong>Google's Privacy Policy:</strong> For more information on how Google handles your data, please see <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google's Privacy Policy</a>. You can also opt out of Google Analytics by installing the <a href="https://tools.google.com/dlpage/gaoptout" target="_blank" rel="noopener">Google Analytics Opt-out Browser Add-on</a>.</li>
+            </ul>
+
+            <h2>Data Sharing</h2>
+            <p>We do not sell, trade, or otherwise transfer your personally identifiable information to outside parties. As all your schedule data is stored locally, you are in full control of it. Anonymous usage data is shared with Google Analytics as described above.</p>
+
+            <h2>Future Payment Processing</h2>
+            <p>We may introduce payment processing in the future to offer premium features. If this occurs, this Privacy Policy will be updated to explain how payment information is handled by a secure third-party payment processor.</p>
+
+            <h2>Changes to This Privacy Policy</h2>
+            <p>We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page. You are advised to review this Privacy Policy periodically for any changes.</p>
+
+            <h2>Contact Us</h2>
+            <p>If you have any questions about this Privacy Policy, you can contact us at: <strong>[Your Contact Email/Info]</strong></p>
+        </div>
+    </section>
+
+    <footer>
+        <p>
+            K-12 Master Scheduler &mdash; Built by <a href="https://gceducationanalytics.com" target="_blank" rel="noopener">GC Education Analytics</a> |
+            <a href="/privacy.html" target="_blank">Privacy Policy</a>
+        </p>
+    </footer>
+
+    <script>
+        window.addEventListener('scroll', function () {
+            var scroll = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+            var blurLayer = document.getElementById('scroll-blur-layer');
+            if(blurLayer) {
+                blurLayer.style.opacity = Math.min(scroll / 300, 1);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -4,6 +4,176 @@
 
 import { Student, CourseRequest, Course, Teacher, Room } from '../types';
 
+// ─── SIS auto-detection ───────────────────────────────────────────────────────
+
+/**
+ * Maps normalized SIS column header names → our internal field keys.
+ * Covers PowerSchool (underscores) and Infinite Campus (spaces) export formats.
+ */
+export const SIS_FIELD_ALIASES: Record<string, string> = {
+  // ── Student ID ──
+  'student_number': 'student_id',     // PowerSchool
+  'student number': 'student_id',     // Infinite Campus
+  'studentnumber': 'student_id',
+  'student_id': 'student_id',
+  'student id': 'student_id',
+  'studentid': 'student_id',
+  'dcid': 'student_id',               // PowerSchool internal ID
+  'studentsdcid': 'student_id',
+  'state_studentnumber': 'student_id',
+  'local_student_number': 'student_id',
+  'permid': 'student_id',
+
+  // ── Student name (combined) ──
+  'lastfirst': 'student_name',        // PowerSchool default display
+  'student name': 'student_name',
+  'studentname': 'student_name',
+  'student_name': 'student_name',
+  'name': 'student_name',
+
+  // ── Student name (split columns — PS and IC both export these) ──
+  'first_name': 'first_name',
+  'firstname': 'first_name',
+  'first name': 'first_name',
+  'last_name': 'last_name',
+  'lastname': 'last_name',
+  'last name': 'last_name',
+
+  // ── Grade level ──
+  'grade_level': 'student_grade',     // PowerSchool
+  'grade level': 'student_grade',     // Infinite Campus
+  'grade': 'student_grade',
+  'gradelevel': 'student_grade',
+  'student_grade': 'student_grade',
+
+  // ── Course identifier ──
+  'course_number': 'course_id',       // PowerSchool
+  'course number': 'course_id',       // Infinite Campus
+  'coursenumber': 'course_id',
+  'course_id': 'course_id',
+  'course id': 'course_id',
+  'courseid': 'course_id',
+  'course code': 'course_id',
+  'course_code': 'course_id',
+
+  // ── Course name ──
+  'course_name': 'course_name',
+  'course name': 'course_name',
+  'coursename': 'course_name',
+  'course title': 'course_name',
+  'course_title': 'course_name',
+
+  // ── Priority / sequence ──
+  'priority': 'priority',
+  'req_sequence': 'priority',         // PowerSchool
+  'request sequence': 'priority',     // Infinite Campus
+  'requestsequence': 'priority',
+  'sched_priority': 'priority',
+
+  // ── PowerSchool-specific request fields ──
+  'alternate_flag': 'ps_alternate_flag', // 0=primary, 1=alternate
+  'alt_seq': 'ps_alt_seq',              // alternate group sequence
+  'req_alt_seq': 'ps_alt_seq',
+
+  // ── Infinite Campus-specific request field ──
+  'request type': 'ic_request_type',    // R=Required, E=Elective, A=Alternate
+  'requesttype': 'ic_request_type',
+  'request_type': 'ic_request_type',
+
+  // ── Alternate group (generic) ──
+  'alternate_group': 'alternate_group',
+  'alternate group': 'alternate_group',
+
+  // ── Course info — teacher ──
+  'teacher_name': 'teacher_name',
+  'teacher name': 'teacher_name',
+  'teachername': 'teacher_name',
+  'teacher': 'teacher_name',
+  'staff name': 'teacher_name',
+  'staff_name': 'teacher_name',
+  'instructor': 'teacher_name',
+  'instructor name': 'teacher_name',
+
+  // ── Course info — room ──
+  'room_number': 'room_number',
+  'room number': 'room_number',
+  'roomnumber': 'room_number',
+  'room': 'room_number',
+  'room name': 'room_number',
+  'classroom': 'room_number',
+
+  // ── Course info — department ──
+  'department': 'department',
+  'dept': 'department',
+  'subject': 'department',
+  'subject type': 'department',
+  'subject_type': 'department',
+
+  // ── Course info — sections ──
+  'section_count': 'section_count',
+  'sections': 'section_count',
+  'number of sections': 'section_count',
+  'num_sections': 'section_count',
+
+  // ── Course info — enrollment ──
+  'student_count': 'student_count',
+  'enrollment': 'student_count',
+  'total students': 'student_count',
+  'student enrollment': 'student_count',
+  'projected enrollment': 'student_count',
+
+  // ── Course info — capacity ──
+  'max_class_size': 'max_class_size',
+  'max class size': 'max_class_size',
+  'max_enrollment': 'max_class_size',
+  'max enrollment': 'max_class_size',
+  'maximum students': 'max_class_size',
+  'max students': 'max_class_size',
+  'maxenrollment': 'max_class_size',
+  'capacity': 'max_class_size',
+  'max_size': 'max_class_size',
+
+  // ── Course info — grade level of course ──
+  'grade_level_course': 'grade_level',
+  'course_grade': 'grade_level',
+};
+
+export type SISFormat = 'powerschool' | 'infinite_campus' | 'generic';
+
+/**
+ * Identifies whether a file looks like a PowerSchool or Infinite Campus export
+ * by checking the header row for signature column names.
+ */
+export function detectSISFormat(headerRow: string[]): SISFormat {
+  const normalized = headerRow.map(h => h.trim().toLowerCase());
+
+  // PowerSchool signature: uses underscores, has PS-only fields
+  const psSignature = ['student_number', 'alternate_flag', 'grade_level', 'last_name', 'first_name', 'alt_seq', 'dcid'];
+  const psHits = psSignature.filter(f => normalized.includes(f)).length;
+
+  // Infinite Campus signature: uses spaces, has IC-only fields
+  const icSignature = ['request type', 'student number', 'course number', 'first name', 'last name', 'grade level'];
+  const icHits = icSignature.filter(f => normalized.includes(f)).length;
+
+  if (psHits >= 2) return 'powerschool';
+  if (icHits >= 2) return 'infinite_campus';
+  return 'generic';
+}
+
+/**
+ * Scans a header row and returns pre-filled column mappings by matching
+ * against SIS_FIELD_ALIASES. Ready to merge into the mapping step's state.
+ */
+export function buildAutoMappings(headerRow: string[]): Record<string, string> {
+  const result: Record<string, string> = {};
+  headerRow.forEach((rawHeader, colIdx) => {
+    const normalized = rawHeader.trim().toLowerCase();
+    const mapped = SIS_FIELD_ALIASES[normalized];
+    if (mapped) result[String(colIdx)] = mapped;
+  });
+  return result;
+}
+
 // ─── Column mapping helpers ───────────────────────────────────────────────────
 
 /** Returns the column index for a given field name, or -1 if not mapped. */
@@ -45,13 +215,20 @@ export function parseRequestsMultiRow(
   mappings: Record<string, string>,
   opts: MultiRowParseOpts = {}
 ): Student[] {
-  const sidCol = colFor(mappings, 'student_id');
-  const snameCol = colFor(mappings, 'student_name');
-  const cidCol = colFor(mappings, 'course_id');
-  const cnameCol = colFor(mappings, 'course_name');
-  const gradeCol = colFor(mappings, 'student_grade');
+  const sidCol      = colFor(mappings, 'student_id');
+  const snameCol    = colFor(mappings, 'student_name');
+  // Split-name columns (PowerSchool / Infinite Campus)
+  const fnameCol    = colFor(mappings, 'first_name');
+  const lnameCol    = colFor(mappings, 'last_name');
+  const cidCol      = colFor(mappings, 'course_id');
+  const cnameCol    = colFor(mappings, 'course_name');
+  const gradeCol    = colFor(mappings, 'student_grade');
   const priorityCol = colFor(mappings, 'priority');
   const altGroupCol = colFor(mappings, 'alternate_group');
+  // SIS-specific priority/alternate fields
+  const icReqTypeCol  = colFor(mappings, 'ic_request_type');   // IC: R/E/A
+  const psAltFlagCol  = colFor(mappings, 'ps_alternate_flag'); // PS: 0/1
+  const psAltSeqCol   = colFor(mappings, 'ps_alt_seq');        // PS: alternate grouping sequence
 
   const studentMap = new Map<string, Student>();
 
@@ -60,7 +237,13 @@ export function parseRequestsMultiRow(
     if (!row || row.every(c => !c.trim())) continue;
 
     const rawId = cell(row, sidCol);
-    const rawName = cell(row, snameCol);
+    // Build student name from combined column OR first+last split columns
+    const combinedName = cell(row, snameCol);
+    const firstName = fnameCol >= 0 ? cell(row, fnameCol) : '';
+    const lastName  = lnameCol >= 0 ? cell(row, lnameCol) : '';
+    const splitName = [firstName, lastName].filter(Boolean).join(' ');
+    const rawName = combinedName || splitName;
+
     const studentKey = rawId || rawName;
     if (!studentKey) continue;
 
@@ -69,15 +252,43 @@ export function parseRequestsMultiRow(
     const courseKey = courseId || courseName;
     if (!courseKey) continue;
 
+    // ── Derive priority + alternate group from SIS-specific fields ──
     let priority = 1;
-    if (priorityCol >= 0) {
+    let sisAltGroup: string | undefined;
+
+    if (icReqTypeCol >= 0) {
+      // Infinite Campus: Request Type column (R/E/A)
+      const reqType = cell(row, icReqTypeCol).toUpperCase().trim();
+      if (reqType === 'A' || reqType === 'ALT' || reqType === 'ALTERNATE') {
+        priority = 10;
+        sisAltGroup = `${studentKey}_ic_alt`;
+      } else if (reqType === 'E' || reqType === 'ELECTIVE') {
+        priority = 2;
+      } else {
+        priority = 1; // R, Required, empty, or unknown
+      }
+    } else if (psAltFlagCol >= 0) {
+      // PowerSchool: Alternate_Flag column (0=primary, 1=alternate)
+      const isAlt = cell(row, psAltFlagCol).trim() === '1';
+      if (isAlt) {
+        priority = 10;
+        const seq = psAltSeqCol >= 0 ? cell(row, psAltSeqCol) || '1' : '1';
+        sisAltGroup = `${studentKey}_alt_${seq}`;
+      } else if (priorityCol >= 0) {
+        const p = parseInt(cell(row, priorityCol), 10);
+        if (!isNaN(p) && p > 0) priority = p;
+      }
+    } else if (priorityCol >= 0) {
       const p = parseInt(cell(row, priorityCol), 10);
       if (!isNaN(p) && p > 0) priority = p;
     } else if (!opts.assumeEqualPriority) {
-      priority = 1;
+      priority = 1; // default; assumeEqualPriority doesn't change the value but documents intent
     }
 
-    const alternateGroup = altGroupCol >= 0 ? cell(row, altGroupCol) || undefined : undefined;
+    // Explicit alternate_group column takes precedence over SIS-derived group
+    const alternateGroup = altGroupCol >= 0
+      ? (cell(row, altGroupCol) || sisAltGroup || undefined)
+      : sisAltGroup;
     const gradeLevel = gradeCol >= 0 ? cell(row, gradeCol) : '';
 
     if (!studentMap.has(studentKey)) {
@@ -132,9 +343,11 @@ export function parseRequestsWide(
   mappings: Record<string, string>,
   opts: WideParseOpts = {}
 ): Student[] {
-  const sidCol = colFor(mappings, 'student_id');
-  const snameCol = colFor(mappings, 'student_name');
-  const gradeCol = colFor(mappings, 'student_grade');
+  const sidCol    = colFor(mappings, 'student_id');
+  const snameCol  = colFor(mappings, 'student_name');
+  const fnameCol  = colFor(mappings, 'first_name');
+  const lnameCol  = colFor(mappings, 'last_name');
+  const gradeCol  = colFor(mappings, 'student_grade');
   const courseCols = colsFor(mappings, 'course_col');
 
   const headerRowData = data[headerRow] ?? [];
@@ -155,7 +368,10 @@ export function parseRequestsWide(
     if (!row || row.every(c => !c.trim())) continue;
 
     const rawId = cell(row, sidCol);
-    const rawName = cell(row, snameCol);
+    const combinedName = cell(row, snameCol);
+    const firstName = fnameCol >= 0 ? cell(row, fnameCol) : '';
+    const lastName  = lnameCol >= 0 ? cell(row, lnameCol) : '';
+    const rawName = combinedName || [firstName, lastName].filter(Boolean).join(' ');
     const studentKey = rawId || rawName;
     if (!studentKey) continue;
 

@@ -34,6 +34,14 @@ describe('Scheduling Engine', () => {
       passingTime: 5,
       scheduleType: "standard",
       planPeriodsPerDay: 1,
+      studentCount: 50,
+      maxClassSize: 30,
+      cohorts: [],
+      constraints: [],
+      periods: [],
+      lunchConfig: { style: 'unit', lunchPeriod: 4, lunchPeriods: [4], lunchDuration: 30, numWaves: 1, minClassTime: 15 },
+      winConfig: { enabled: false, model: '', afterPeriod: 0, winDuration: 30 },
+      recessConfig: { enabled: false, duration: 15, afterPeriod: 0 },
     };
   });
   

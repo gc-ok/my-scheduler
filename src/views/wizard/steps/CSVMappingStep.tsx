@@ -8,6 +8,9 @@ import {
   parseRequestsWide,
   parseCourseInfo,
   CourseColMeta,
+  detectSISFormat,
+  buildAutoMappings,
+  SISFormat,
 } from '../../../utils/csvParser';
 
 interface StepProps {
@@ -25,19 +28,26 @@ interface FieldDef {
 }
 
 const MULTI_ROW_FIELDS: FieldDef[] = [
-  { key: 'student_id',     label: 'Student ID',      description: 'Unique student identifier' },
-  { key: 'student_name',   label: 'Student Name',    description: 'Full name of the student' },
-  { key: 'course_id',      label: 'Course ID',       description: 'Unique course identifier' },
-  { key: 'course_name',    label: 'Course Name',     description: 'Name of the course being requested' },
-  { key: 'student_grade',  label: 'Grade Level',     description: 'Student grade (optional)' },
-  { key: 'priority',       label: 'Priority',        description: 'Request priority number — lower = higher priority (optional)' },
-  { key: 'alternate_group',label: 'Alternate Group', description: 'Groups alternates together — e.g. "pick one from Art or Music" (optional)' },
+  { key: 'student_id',          label: 'Student ID',                description: 'Unique student identifier' },
+  { key: 'student_name',        label: 'Student Name',              description: 'Full name (combined) — use First Name + Last Name instead if your file has split columns' },
+  { key: 'first_name',          label: 'First Name',                description: 'Student first name — combined with Last Name automatically' },
+  { key: 'last_name',           label: 'Last Name',                 description: 'Student last name — combined with First Name automatically' },
+  { key: 'course_id',           label: 'Course ID / Number',        description: 'Unique course identifier or course number' },
+  { key: 'course_name',         label: 'Course Name',               description: 'Name of the course being requested' },
+  { key: 'student_grade',       label: 'Grade Level',               description: 'Student grade (optional)' },
+  { key: 'priority',            label: 'Priority',                  description: 'Request priority number — lower = higher priority (optional)' },
+  { key: 'alternate_group',     label: 'Alternate Group',           description: 'Groups alternates together — e.g. "pick one from Art or Music" (optional)' },
+  { key: 'ic_request_type',     label: 'Request Type (IC: R/E/A)',  description: 'Infinite Campus: R=Required, E=Elective, A=Alternate — auto-converts to priority' },
+  { key: 'ps_alternate_flag',   label: 'Alternate Flag (PS: 0/1)',  description: 'PowerSchool: 0=primary request, 1=alternate — auto-converts to priority' },
+  { key: 'ps_alt_seq',          label: 'Alt Sequence (PS)',         description: 'PowerSchool: groups alternates with the same sequence number together' },
 ];
 
 const WIDE_FIELDS: FieldDef[] = [
-  { key: 'student_id',    label: 'Student ID',   description: 'Unique student identifier' },
-  { key: 'student_name',  label: 'Student Name', description: 'Full name of the student' },
-  { key: 'student_grade', label: 'Grade Level',  description: 'Student grade (optional)' },
+  { key: 'student_id',    label: 'Student ID',    description: 'Unique student identifier' },
+  { key: 'student_name',  label: 'Student Name',  description: 'Full name (combined)' },
+  { key: 'first_name',    label: 'First Name',    description: 'Student first name — combined with Last Name automatically' },
+  { key: 'last_name',     label: 'Last Name',     description: 'Student last name — combined with First Name automatically' },
+  { key: 'student_grade', label: 'Grade Level',   description: 'Student grade (optional)' },
   { key: 'course_col',    label: 'Course Column', description: 'A column containing a course request — select for each course column' },
 ];
 
@@ -174,6 +184,17 @@ export const CSVMappingStep: React.FC<StepProps> = ({ onNext, onBack }) => {
     [rows, headerIdx]
   );
 
+  // SIS format detection — runs whenever the header row changes
+  const detectedSIS: SISFormat = useMemo(
+    () => (headerCells.length > 0 ? detectSISFormat(headerCells) : 'generic'),
+    [headerCells]
+  );
+
+  const applyAutoMappings = () => {
+    const auto = buildAutoMappings(headerCells);
+    setMappings(auto);
+  };
+
   const previewRows = useMemo(
     () => rows.slice(0, Math.min(rows.length, dataStartIdx + 5)),
     [rows, dataStartIdx]
@@ -227,15 +248,18 @@ export const CSVMappingStep: React.FC<StepProps> = ({ onNext, onBack }) => {
   const validationWarnings: string[] = useMemo(() => {
     const warns: string[] = [];
     const mapped = new Set(Object.values(mappings));
+    // Student identity: student_id, student_name, or split first_name+last_name
+    const hasStudentId = mapped.has('student_id') || mapped.has('student_name') ||
+                         mapped.has('first_name') || mapped.has('last_name');
     if (isRequests && !isWide) {
-      if (!mapped.has('student_id') && !mapped.has('student_name'))
-        warns.push('Map at least one of: Student ID or Student Name');
+      if (!hasStudentId)
+        warns.push('Map at least one of: Student ID, Student Name, or First Name + Last Name');
       if (!mapped.has('course_id') && !mapped.has('course_name'))
         warns.push('Map at least one of: Course ID or Course Name');
     }
     if (isRequests && isWide) {
-      if (!mapped.has('student_id') && !mapped.has('student_name'))
-        warns.push('Map at least one of: Student ID or Student Name');
+      if (!hasStudentId)
+        warns.push('Map at least one of: Student ID, Student Name, or First Name + Last Name');
       if (!mapped.has('course_col'))
         warns.push('Mark at least one column as Course Column');
     }
@@ -392,6 +416,39 @@ export const CSVMappingStep: React.FC<StepProps> = ({ onNext, onBack }) => {
       <div style={{ fontSize: 12, color: COLORS.textLight, marginTop: 10 }}>
         {rows.length} total rows detected · {dataRows.length} data rows
       </div>
+
+      {/* SIS auto-detection banner */}
+      {headerCells.length > 0 && (
+        <div style={{
+          marginTop: 18, padding: '12px 16px', borderRadius: 8,
+          background: detectedSIS !== 'generic' ? '#F0FDF4' : COLORS.offWhite,
+          border: `1.5px solid ${detectedSIS !== 'generic' ? '#86EFAC' : COLORS.lightGray}`,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: COLORS.text }}>
+              {detectedSIS === 'powerschool' && '✓ PowerSchool export detected'}
+              {detectedSIS === 'infinite_campus' && '✓ Infinite Campus export detected'}
+              {detectedSIS === 'generic' && 'Format: Generic CSV'}
+            </span>
+            {detectedSIS !== 'generic' && (
+              <span style={{ fontSize: 12, color: COLORS.textLight }}>
+                — column names match {detectedSIS === 'powerschool' ? 'PowerSchool' : 'Infinite Campus'} field conventions
+              </span>
+            )}
+            <Btn small onClick={applyAutoMappings} style={{ marginLeft: 'auto' }}>
+              {detectedSIS !== 'generic' ? 'Auto-Map Columns' : 'Apply Common Mappings'}
+            </Btn>
+          </div>
+          {detectedSIS !== 'generic' && (
+            <p style={{ fontSize: 11, color: COLORS.textLight, marginTop: 6, marginBottom: 0 }}>
+              Clicking Auto-Map will pre-fill column assignments in Step 2.
+              {detectedSIS === 'powerschool' && ' Alternate_Flag and Alt_Seq are handled automatically.'}
+              {detectedSIS === 'infinite_campus' && ' Request Type (R/E/A) is converted to priority automatically.'}
+              &nbsp;Review and adjust in the next step.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 

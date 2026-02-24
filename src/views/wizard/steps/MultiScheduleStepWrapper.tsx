@@ -6,7 +6,7 @@ import { Tabs } from '../../../components/ui/CoreUI';
 interface WrapperProps {
   config: Partial<WizardState>;
   setConfig: (config: Partial<WizardState>) => void;
-  children: React.ReactElement;
+  children: React.ReactElement<any>;
 }
 
 export const MultiScheduleStepWrapper: React.FC<WrapperProps> = ({ config, setConfig, children }) => {

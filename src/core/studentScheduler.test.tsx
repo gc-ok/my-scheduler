@@ -1,7 +1,7 @@
 // src/core/studentScheduler.test.tsx
 import { describe, it, expect, beforeEach } from 'vitest';
 import { runStudentScheduler } from './studentScheduler';
-import { Section, Student, CourseRequest, EngineConfig } from '../types';
+import { Section, Student, EngineConfig } from '../types';
 
 describe('Student Scheduler', () => {
   let masterSchedule: Section[];
