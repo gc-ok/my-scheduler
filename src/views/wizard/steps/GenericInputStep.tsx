@@ -94,12 +94,47 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
   // parallelGroupId: cohorts sharing the same group ID are scheduled for the same subject at the same period
   // Default model derived from school-level elementaryModel answer so pre-fills correctly.
   const defaultCohortModel = c.elementaryModel === 'platooning' ? 'platooning' : 'self_contained';
+
+  // Smart default cohorts: auto-generate 2 cohorts per relevant elementary grade
+  const buildDefaultCohorts = () => {
+    const ALL_GRADES = ["K","1","2","3","4","5","6","7","8","9","10","11","12"];
+    const ELEM_GRADES = ["K","1","2","3","4","5"];
+
+    let grades: string[] = [];
+    if (c.schoolType === "elementary") grades = ELEM_GRADES;
+    else if (c.schoolType === "k8") grades = ELEM_GRADES;
+    else if (c.schoolType === "k12") grades = ELEM_GRADES;
+    else if (c.schoolType === "custom" && c.customGradeRange) {
+      const fi = ALL_GRADES.indexOf(c.customGradeRange.from);
+      const ti = ALL_GRADES.indexOf(c.customGradeRange.to);
+      if (fi !== -1 && ti !== -1) grades = ALL_GRADES.slice(fi, ti + 1).filter(g => ELEM_GRADES.includes(g));
+    }
+    if (grades.length === 0) grades = ["1", "2"];
+
+    const earlyGrades = new Set(["K","1","2"]);
+    const labels = ["A", "B"];
+    const result: any[] = [];
+    let idx = 0;
+
+    grades.forEach(grade => {
+      let model = defaultCohortModel;
+      if (c.elementaryModel === 'split_band') {
+        model = earlyGrades.has(grade) ? 'self_contained' : 'departmentalized';
+      }
+      labels.forEach(lbl => {
+        idx++;
+        result.push({
+          id: `c${idx}`, name: `${grade}${lbl}`, gradeLevel: grade,
+          teacherName: "", studentCount: 25, parallelGroupId: "",
+          scheduleModel: model, partnerTeacherName: "",
+        });
+      });
+    });
+    return result;
+  };
+
   const [cohorts, setCohorts] = useState<any[]>(
-    c.cohorts && c.cohorts.length > 0 ? c.cohorts : [
-      { id: "c1", name: "1A", gradeLevel: "1", teacherName: "", studentCount: 25, parallelGroupId: "", scheduleModel: defaultCohortModel, partnerTeacherName: "" },
-      { id: "c2", name: "1B", gradeLevel: "1", teacherName: "", studentCount: 25, parallelGroupId: "", scheduleModel: defaultCohortModel, partnerTeacherName: "" },
-      { id: "c3", name: "2A", gradeLevel: "2", teacherName: "", studentCount: 26, parallelGroupId: "", scheduleModel: defaultCohortModel, partnerTeacherName: "" },
-    ]
+    c.cohorts && c.cohorts.length > 0 ? c.cohorts : buildDefaultCohorts()
   );
 
   // ELEMENTARY COURSE STATE — core subjects + specials
