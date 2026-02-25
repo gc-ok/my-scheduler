@@ -71,7 +71,7 @@ interface TeacherGridProps {
 }
 
 export default function TeacherGrid({ schedule, config, fDept, setEditSection, onTeacherClick, onEditTeacher, filterTeacherId }: TeacherGridProps) {
-  const { periodList: allP = [], teachers = [], sections: secs = [], teacherSchedule = {} } = schedule;
+  const { periods: allP = [], teachers = [], sections: secs = [], teacherSchedule = {} } = schedule;
   const numWaves = Number(config?.lunchConfig?.numWaves) || 3; // Enforce Number type to prevent Array.from crash
   
   // OPTIMIZATION: Create a hash map for O(1) section lookup by teacher and period

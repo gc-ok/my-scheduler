@@ -33,8 +33,8 @@ self.onmessage = (e: MessageEvent<WorkerPayload>) => {
         });
       }
       
-      const { logs, placementHistory, ...leanResult } = result;
-      self.postMessage({ status: 'VARIANT_SUCCESS', data: leanResult, variantId: targetVariantId });
+      const { logs, placementHistory, periodList, ...leanResult } = result;
+      self.postMessage({ status: 'VARIANT_SUCCESS', data: { ...leanResult, periods: periodList }, variantId: targetVariantId });
       return;
     }
 

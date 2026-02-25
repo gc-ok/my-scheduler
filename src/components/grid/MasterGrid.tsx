@@ -83,7 +83,7 @@ interface MasterGridProps {
 }
 
 export default function MasterGrid({ schedule, config, fSecs, dragItem, onDragStart, onDrop, togLock, setEditSection, onPeriodTimeChange, onConflictClick }: MasterGridProps) {
-  const { periodList: allP = [], periodStudentData: psd = {}, stats } = schedule;
+  const { periods: allP = [], periodStudentData: psd = {}, stats } = schedule;
   const studentCount = stats?.totalStudents || 0;
 
   // OPTIMIZATION: Pre-calculate sections grouped by courseId to avoid O(N^2) filtering in render

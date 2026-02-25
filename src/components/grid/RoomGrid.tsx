@@ -10,7 +10,7 @@ interface RoomGridProps {
 }
 
 export default function RoomGrid({ schedule, config }: RoomGridProps) {
-  const { periodList = [], rooms = [], sections = [] } = schedule;
+  const { periods: periodList = [], rooms = [], sections = [] } = schedule;
   
   let terms = [""];
   if (config?.scheduleType === "ab_block") terms = ["A", "B"];
