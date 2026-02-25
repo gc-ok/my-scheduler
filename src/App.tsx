@@ -132,15 +132,19 @@ export default function App() {
       <div className={css.root}>
         {errorState && <ErrorModal />}
         <div className={css.scheduleHeader}>
-          <div className={css.scheduleHeaderLeft}>
-            <Logo size={30} />
-            <div className={css.scheduleHeaderInfo}>
-              {config.schoolType} · {config.scheduleType?.replace(/_/g, " ")} · {firstVariant?.periods?.length || config.periodsCount || 7} periods
+            <a href="/index.html" className={css.navBrand}>
+                <Logo size={32} />
+                <span className={css.navBrandText}>K-12 Master Scheduler</span>
+            </a>
+            <div className={css.scheduleHeaderRight}>
+                <div className={css.scheduleHeaderInfo}>
+                    {config.schoolType} · {config.scheduleType?.replace(/_/g, " ")} · {firstVariant?.periods?.length || config.periodsCount || 7} periods
+                </div>
+                <div className={css.scheduleHeaderStats}>
+                    {firstVariant?.stats?.scheduledCount}/{firstVariant?.stats?.totalSections} scheduled · {firstVariant?.stats?.conflictCount} conflicts
+                </div>
+                <a href="/index.html" className={css.navLink}>&larr; Homepage</a>
             </div>
-          </div>
-          <div className={css.scheduleHeaderStats}>
-            {firstVariant?.stats?.scheduledCount}/{firstVariant?.stats?.totalSections} scheduled · {firstVariant?.stats?.conflictCount} conflicts
-          </div>
         </div>
         <ErrorBoundary>
           <ScheduleGridView schedule={schedule} config={config} setSchedule={setSchedule} onRegenerate={regen} onBackToConfig={() => setStep(9)} onExport={(fmt) => exportCSV(fmt)} />

@@ -54,7 +54,11 @@ export default function WizardController({ step, setStep, config, setConfig, onC
   return (
     <>
       <div className={css.header}>
-        <Logo size={36} />
+        <a href="/index.html" className={css.navBrand}>
+          <Logo size={32} />
+          <span>K-12 Master Scheduler</span>
+        </a>
+        <a href="/index.html" className={css.navLink}>&larr; Homepage</a>
       </div>
 
       {step > 0 && (
