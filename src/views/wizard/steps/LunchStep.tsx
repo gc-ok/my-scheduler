@@ -24,7 +24,27 @@ export function LunchStep({ config: c, setConfig, onNext, onBack }: StepProps) {
   const periods = c.periods || [];
   const isBlock = c.scheduleType === "ab_block" || c.scheduleType === "4x4_block"; 
   
-  const [style, setStyle] = useState(c.lunchConfig?.style || (isBlock ? "split" : "unit"));
+    const getInitialStyle = () => {
+    const storedStyle = c.lunchConfig?.style;
+    const defaultForSchedule = isBlock ? "split" : "unit";
+
+    if (!storedStyle) {
+      // No stored style, use the default for the current schedule type.
+      return defaultForSchedule;
+    }
+
+    // If we have a stored style, check for a clear mismatch.
+    // The primary issue is when a block schedule has a 'unit' lunch config from a previous, non-block session.
+    // In this case, we should override the stored style and use the correct default for a block schedule.
+    if (isBlock && storedStyle === 'unit') {
+      return 'split';
+    }
+
+    // Otherwise, respect the user's previously stored setting.
+    return storedStyle;
+  };
+
+  const [style, setStyle] = useState(getInitialStyle());
   const [lunchPeriod, setLunchPeriod] = useState(c.lunchConfig?.lunchPeriod || (isBlock ? 3 : 4));
   
   const [lunchSpan, setLunchSpan] = useState(2); 

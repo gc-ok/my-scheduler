@@ -23,12 +23,12 @@ function buildSingleConfig(config: Partial<WizardState>): EngineConfig {
     periodLength: config.periodLength || 50,
     passingTime: config.passingTime || 5,
     lunchConfig: {
-      style: (config.lunchStyle || "unit") as "unit" | "split" | "multi_period",
-      lunchPeriod: config.lunchPeriod ?? Math.ceil(pc / 2),
-      lunchPeriods: config.lunchPeriods || [],
-      lunchDuration: config.lunchDuration || 30,
-      numWaves: config.numLunchWaves || 1,
-      minClassTime: config.minClassTime || 45,
+      style: (config.lunchConfig?.style || config.lunchStyle || "unit") as "unit" | "split" | "multi_period",
+      lunchPeriod: config.lunchConfig?.lunchPeriod ?? config.lunchPeriod ?? Math.ceil(pc / 2),
+      lunchPeriods: config.lunchConfig?.lunchPeriods || config.lunchPeriods || [],
+      lunchDuration: config.lunchConfig?.lunchDuration || config.lunchDuration || 30,
+      numWaves: config.lunchConfig?.numWaves || config.numLunchWaves || 3,
+      minClassTime: config.lunchConfig?.minClassTime || config.minClassTime || 45,
     },
     winConfig: {
       enabled: config.winEnabled || false,

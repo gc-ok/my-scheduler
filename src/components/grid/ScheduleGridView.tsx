@@ -262,7 +262,7 @@ export default function ScheduleGridView({ schedule, config, setSchedule, onRege
 
   // Modals' state
   const [plcGroups, setPlcGroups] = useState<any[]>([]);
-  const [teacherAvail] = useState<any[]>([]);
+  const [teacherAvail, setTeacherAvail] = useState<any[]>(config.teacherAvailability || []);
   const [showPLCModal, setShowPLCModal] = useState(false);
   const [availTeacher, setAvailTeacher] = useState<Teacher | null>(null);
   const [editTeacher, setEditTeacher] = useState<Teacher | null>(null);
@@ -287,9 +287,15 @@ export default function ScheduleGridView({ schedule, config, setSchedule, onRege
     roomSchedule = {}
   } = activeVariant as any; // Cast to any to handle old structure gracefully for now
   
+  // Load PLC groups from the engine result (stored in the variant), falling back to config
   useEffect(() => {
-    if (config.plcGroups) setPlcGroups(config.plcGroups);
-  }, [config.plcGroups]);
+    const variantPlcs = (activeVariant as any)?.plcGroups;
+    if (variantPlcs && variantPlcs.length > 0) {
+      setPlcGroups(variantPlcs);
+    } else if (config.plcGroups && config.plcGroups.length > 0) {
+      setPlcGroups(config.plcGroups);
+    }
+  }, [activeVariant, config.plcGroups]);
 
   const depts = [...new Set((secs as Section[]).map(s => s.department))];
   const hasCohorts = (secs as Section[]).some(s => s.cohortId);
@@ -344,7 +350,8 @@ export default function ScheduleGridView({ schedule, config, setSchedule, onRege
       if (p.type !== 'class' && p.type !== 'split_lunch' && p.type !== 'multi_lunch') continue;
       if (p.id === section.period) continue;
 
-      const teacherIsAvailable = !teacherSchedule[section.teacher]?.[p.id];
+      const tStatus = teacherSchedule[section.teacher]?.[p.id];
+      const teacherIsAvailable = !tStatus || tStatus === "PLAN"; // PLAN = soft constraint, can be overridden
       const roomIsAvailable = !roomSchedule[section.room]?.[p.id];
 
       if (teacherIsAvailable && roomIsAvailable) {
@@ -489,7 +496,8 @@ export default function ScheduleGridView({ schedule, config, setSchedule, onRege
       )}
 
       {showPLCModal && (
-        <PLCOrganizerModal teachers={teachers} periods={periodList} plcGroups={plcGroups} onClose={() => setShowPLCModal(false)} onSave={() => {
+        <PLCOrganizerModal teachers={teachers} periods={periodList} plcGroups={plcGroups} onClose={() => setShowPLCModal(false)} onSave={(groups) => {
+            setPlcGroups(groups);
             setShowPLCModal(false);
             notify("PLC Groups updated. Full refactor needed for this change.", "warning");
           }}
@@ -497,7 +505,9 @@ export default function ScheduleGridView({ schedule, config, setSchedule, onRege
       )}
 
       {availTeacher && (
-        <TeacherAvailabilityModal teacher={availTeacher} periods={periodList} teacherAvail={teacherAvail} onClose={() => setAvailTeacher(null)} onSave={() => {
+        <TeacherAvailabilityModal teacher={availTeacher} periods={periodList} teacherAvail={teacherAvail} onClose={() => setAvailTeacher(null)} onSave={(blocked) => {
+            const existing = teacherAvail.filter(a => a.teacherId !== availTeacher.id);
+            setTeacherAvail([...existing, { teacherId: availTeacher.id, blockedPeriods: blocked }]);
             setAvailTeacher(null);
             notify("Teacher availability updated. Full refactor needed.", "warning");
           }}

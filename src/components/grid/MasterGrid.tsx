@@ -83,7 +83,7 @@ interface MasterGridProps {
 }
 
 export default function MasterGrid({ schedule, config, fSecs, dragItem, onDragStart, onDrop, togLock, setEditSection, onPeriodTimeChange, onConflictClick }: MasterGridProps) {
-  const { periods: allP = [], periodStudentData: psd = {}, stats } = schedule;
+  const { periods: allP = [], periodStudentData: psd = {}, stats, teacherSchedule: tSched = {} } = schedule;
   const studentCount = stats?.totalStudents || 0;
 
   // OPTIMIZATION: Pre-calculate sections grouped by courseId to avoid O(N^2) filtering in render
@@ -183,6 +183,7 @@ export default function MasterGrid({ schedule, config, fSecs, dragItem, onDragSt
           const cs = sectionsByCourse[cid];
           const isCore = cs[0]?.isCore;
           const unplacedForCourse = cs.filter(s => s.period == null);
+          const courseTeachers = [...new Set(cs.map(s => s.teacher).filter(Boolean))] as string[];
 
           return (
             <React.Fragment key={cid}>
@@ -197,7 +198,7 @@ export default function MasterGrid({ schedule, config, fSecs, dragItem, onDragSt
                   </div>
                 )}
               </div>
-              
+
               {allP.map((p: Period) => {
                 // ROBUST TERM FILTERING: Matches the base ID and ALL possible term prefixes dynamically
                 let matchPids: (string | number)[] = [p.id];
@@ -207,9 +208,47 @@ export default function MasterGrid({ schedule, config, fSecs, dragItem, onDragSt
 
                 const ps = cs.filter(s => matchPids.includes(s.period!));
                 const isNT = p.type === "unit_lunch" || p.type === "win" || p.type === "recess";
-                
+
+                // Determine empty cell status label (PLC, Plan, WIN, etc.)
+                let emptyLabel: string | null = null;
+                let emptyColor = COLORS.midGray;
+                if (ps.length === 0) {
+                  if (p.type === "win") { emptyLabel = "WIN"; emptyColor = COLORS.darkGray; }
+                  else if (p.type === "recess") { emptyLabel = "Recess"; emptyColor = COLORS.success; }
+                  else if (p.type === "unit_lunch") { emptyLabel = "Lunch"; emptyColor = COLORS.warning; }
+                  else if (courseTeachers.length > 0) {
+                    // Check teacherSchedule for explicit statuses (PLAN, PLC, LUNCH, etc.)
+                    const reasons: Record<string, number> = {};
+                    courseTeachers.forEach(tid => {
+                      const st = tSched[tid]?.[p.id];
+                      if (st === "PLC" || st === "PLAN" || st === "LUNCH" || st === "BLOCKED" || st === "RECESS") {
+                        reasons[st] = (reasons[st] || 0) + 1;
+                      }
+                      // else: st is a section ID (teaching another course) or undefined → don't count
+                    });
+                    const entries = Object.entries(reasons);
+                    if (entries.length > 0) {
+                      const [topReason] = entries.sort((a, b) => b[1] - a[1])[0];
+                      const info: Record<string, { label: string; color: string }> = {
+                        PLC: { label: "🤝 PLC", color: COLORS.secondary },
+                        PLAN: { label: "📋 Plan", color: COLORS.midGray },
+                        LUNCH: { label: "🥗 Lunch", color: COLORS.warning },
+                        BLOCKED: { label: "🚫 Unavail", color: COLORS.danger },
+                        RECESS: { label: "🛝 Recess", color: COLORS.success },
+                      };
+                      emptyLabel = info[topReason]?.label || topReason;
+                      emptyColor = info[topReason]?.color || COLORS.midGray;
+                    }
+                  }
+                }
+
                 return (
                   <div key={`${cid}-${p.id}`} onDragOver={e => !isNT && e.preventDefault()} onDrop={() => !isNT && onDrop(p.id)} style={{ padding: 3, minHeight: 44, borderBottom: `1px solid ${COLORS.lightGray}`, borderRight: `1px solid ${COLORS.lightGray}`, background: isNT ? "#F0F0F0" : dragItem ? `${COLORS.accentLight}30` : COLORS.white }}>
+                    {emptyLabel && (
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", minHeight: 38 }}>
+                        <span style={{ fontSize: 9, color: emptyColor, fontWeight: 600, opacity: 0.6 }}>{emptyLabel}</span>
+                      </div>
+                    )}
                     {ps.map(s => <SecCard key={s.id} section={s} dragItem={dragItem} onDragStart={onDragStart} togLock={togLock} setEditSection={setEditSection} onConflictClick={onConflictClick} />)}
                   </div>
                 );

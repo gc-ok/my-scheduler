@@ -167,10 +167,20 @@ export interface ScheduleVariantDef {
 export interface SingleScheduleResult {
   sections: Section[];
   periods: Period[];
+  teachers?: Teacher[];
+  rooms?: Room[];
+  conflicts?: { type: string; message: string; sectionId?: string; teacherId?: string }[];
+  teacherSchedule?: Record<string, Record<string, string>>;
+  roomSchedule?: Record<string, Record<string, string>>;
+  periodStudentData?: Record<string, { seatsInClass: number; unaccounted: number; atLunch: number | string; sectionCount: number }>;
+  plcGroups?: PlcGroup[];
   stats?: {
     scheduledCount: number;
     totalSections: number;
     conflictCount: number;
+    totalStudents?: number;
+    teacherCount?: number;
+    roomCount?: number;
     roomUtilization?: number;
     teacherUtilization?: number;
   };
@@ -205,7 +215,16 @@ export interface WizardState {
   variantConfigs?: Record<string, Partial<WizardState>>;
   activeVariantId?: string;
 
-  // Flat lunch fields (normalized into lunchConfig)
+  // Lunch config (nested from LunchStep)
+  lunchConfig?: {
+    style: "unit" | "split" | "multi_period";
+    lunchPeriod: number | string;
+    lunchPeriods: (number | string)[];
+    lunchDuration: number;
+    numWaves: number;
+    minClassTime: number;
+  };
+  // Flat lunch fields (legacy, normalized into lunchConfig by buildSingleConfig)
   lunchStyle?: string;
   lunchPeriod?: number | string;
   lunchPeriods?: (number | string)[];

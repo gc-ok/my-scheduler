@@ -131,7 +131,7 @@ export abstract class BaseStrategy {
   }
 
   execute(sections: Section[], periodList: Period[], rooms: Room[]): ScheduleConflict[] {
-    const schedulablePeriods = periodList.filter(p => p.id !== "WIN" && p.type !== "win" && p.type !== "recess");
+    const schedulablePeriods = periodList.filter(p => p.id !== "WIN" && p.type !== "win" && p.type !== "recess" && p.type !== "unit_lunch");
     const timeSlots = this.generateTimeSlots(schedulablePeriods);
     timeSlots.forEach(slot => this.secsInPeriod[slot] = 0);
 

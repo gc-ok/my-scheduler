@@ -129,7 +129,7 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
 
   const {
     teachers = [], courses = [], cohorts = [], rooms = [], constraints = [],
-    plcEnabled = false,
+    plcEnabled = false, plcFrequency = "weekly",
     studentCount = 800, maxClassSize = 30, planPeriodsPerDay,
     schoolStart = "08:00", schoolEnd = "15:00",
     passingTime = 5, scheduleMode = "period_length",
@@ -277,7 +277,10 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
   const recessCount = periodList.filter(p => p.type === "recess").length;
   const effectiveSlots = numTeachingPeriods - lunchPeriodsCount - recessCount; 
   
-  let dailyMaxLoad = Math.max(1, effectiveSlots - safePlanPeriods - (plcEnabled ? 1 : 0));
+  // Weekly PLC shares one of the plan slots (same period = plan on non-PLC days).
+  // Daily PLC is a separate slot on top of plan periods.
+  const plcExtraSlots = plcEnabled && plcFrequency === "daily" ? 1 : 0;
+  let dailyMaxLoad = Math.max(1, effectiveSlots - safePlanPeriods - plcExtraSlots);
 
   // Rotating drop: one period in the bank "drops" each day, so each teacher
   // has one fewer teaching slot per day than the total period count.
@@ -291,7 +294,7 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
   if (config.scheduleType === "modified_block") {
     const stdPeriods = periodList.filter(p => !p.days || p.days.includes(1));
     const stdLunch = stdPeriods.filter(p => p.type === "unit_lunch" || p.type === "multi_lunch").length;
-    dailyMaxLoad = Math.max(1, stdPeriods.length - stdLunch - safePlanPeriods - (plcEnabled ? 1 : 0));
+    dailyMaxLoad = Math.max(1, stdPeriods.length - stdLunch - safePlanPeriods - plcExtraSlots);
   }
 
   let maxLoad = config.scheduleType === "ab_block" ? (dailyMaxLoad * 2) : dailyMaxLoad;
@@ -789,8 +792,8 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
     const univLunchPid = toUniv(lunchPid);
     const lunchSections = sections.filter(s => s.period === univLunchPid && !s.hasConflict);
     
-    // ELEMENTARY FIX: Group by Grade Level if elementary, otherwise Department
-    const isElem = config.schoolType === "elementary" || config.schoolType === "k8";
+    // Group by Grade Level if elementary, otherwise Department (keeps same-grade kids in same wave)
+    const isElem = config.schoolType === "elementary" || config.schoolType === "k8" || config.schoolType === "k12";
     const groupKey = (s: Section) => isElem ? (s.gradeLevel || s.department) : s.department;
 
     const groups = [...new Set(lunchSections.map(s => groupKey(s)))];
@@ -876,14 +879,29 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
     }
   });
 
+  // --- EXPLICITLY MARK PLAN PERIODS ---
+  // After placement, any unoccupied class period for a teacher is their Plan period.
+  // Mark them explicitly so grids can display "Plan" reliably.
+  const classPeriodUnivIds = periodList
+    .filter(p => p.type === "class" || p.type === "split_lunch")
+    .map(p => String(toUniv(p.id)));
+
   teachers.forEach(t => {
-    const teaching = Object.keys(tracker.teacherSchedule[t.id] || {}).filter(k => !["LUNCH", "PLC", "PLAN", "BLOCKED"].includes(tracker.teacherSchedule[t.id][k])).length;
+    const sched = tracker.teacherSchedule[t.id] || {};
+    const teaching = Object.keys(sched).filter(k => !["LUNCH", "PLC", "PLAN", "BLOCKED", "RECESS"].includes(sched[k])).length;
     const free = effectiveSlots - teaching;
-    
-    const expectedFree = safePlanPeriods + (plcEnabled ? 1 : 0);
-    if (free < expectedFree) { 
-      conflicts.push({ type: "plan_violation", message: `${t.name} has ${free} free periods (needs ${expectedFree} for Plan/PLC)`, teacherId: t.id }); 
+
+    const expectedFree = safePlanPeriods + plcExtraSlots;
+    if (free < expectedFree) {
+      conflicts.push({ type: "plan_violation", message: `${t.name} has ${free} free periods (needs ${expectedFree} for Plan/PLC)`, teacherId: t.id });
     }
+
+    // Mark unoccupied class periods as PLAN
+    classPeriodUnivIds.forEach(univId => {
+      if (!sched[univId]) {
+        tracker.blockTeacher(t.id, univId, "PLAN");
+      }
+    });
   });
 
   const uiTeacherSchedule: Record<string, Record<string, string>> = {};

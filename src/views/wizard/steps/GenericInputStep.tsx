@@ -95,20 +95,31 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
   // Default model derived from school-level elementaryModel answer so pre-fills correctly.
   const defaultCohortModel = c.elementaryModel === 'platooning' ? 'platooning' : 'self_contained';
 
-  // Smart default cohorts: auto-generate 2 cohorts per relevant elementary grade
+  // Smart default cohorts: auto-generate 2 cohorts per relevant grade
+  // Includes elementary grades for elem/k8/k12 PLUS any grades the user selected in cohortGrades
   const buildDefaultCohorts = () => {
     const ALL_GRADES = ["K","1","2","3","4","5","6","7","8","9","10","11","12"];
     const ELEM_GRADES = ["K","1","2","3","4","5"];
 
     let grades: string[] = [];
-    if (c.schoolType === "elementary") grades = ELEM_GRADES;
-    else if (c.schoolType === "k8") grades = ELEM_GRADES;
-    else if (c.schoolType === "k12") grades = ELEM_GRADES;
+    if (c.schoolType === "elementary") grades = [...ELEM_GRADES];
+    else if (c.schoolType === "k8") grades = [...ELEM_GRADES];
+    else if (c.schoolType === "k12") grades = [...ELEM_GRADES];
     else if (c.schoolType === "custom" && c.customGradeRange) {
       const fi = ALL_GRADES.indexOf(c.customGradeRange.from);
       const ti = ALL_GRADES.indexOf(c.customGradeRange.to);
       if (fi !== -1 && ti !== -1) grades = ALL_GRADES.slice(fi, ti + 1).filter(g => ELEM_GRADES.includes(g));
     }
+
+    // Also include any grades the user explicitly selected for cohort tracking (cohortGrades from SchoolTypeStep)
+    const cohortGrades: string[] = c.cohortGrades || [];
+    cohortGrades.forEach((g: string) => {
+      if (!grades.includes(g)) grades.push(g);
+    });
+
+    // Sort grades in proper order
+    grades.sort((a, b) => ALL_GRADES.indexOf(a) - ALL_GRADES.indexOf(b));
+
     if (grades.length === 0) grades = ["1", "2"];
 
     const earlyGrades = new Set(["K","1","2"]);
@@ -118,8 +129,11 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
 
     grades.forEach(grade => {
       let model = defaultCohortModel;
-      if (c.elementaryModel === 'split_band') {
+      // Elementary grades use split_band logic; non-elementary cohort grades default to departmentalized
+      if (ELEM_GRADES.includes(grade) && c.elementaryModel === 'split_band') {
         model = earlyGrades.has(grade) ? 'self_contained' : 'departmentalized';
+      } else if (!ELEM_GRADES.includes(grade)) {
+        model = 'departmentalized';
       }
       labels.forEach(lbl => {
         idx++;
@@ -362,7 +376,46 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
     for (let i = 0; i < rc; i++) rooms.push({ id: `room_${i + 1}`, name: `Room ${101 + i}`, type: "regular", capacity: ms });
     for (let i = 0; i < lc; i++) rooms.push({ id: `lab_${i + 1}`, name: `Lab ${i + 1}`, type: "lab", capacity: ms });
     for (let i = 0; i < gc; i++) rooms.push({ id: `gym_${i + 1}`, name: `Gym ${i + 1}`, type: "gym", capacity: ms * 2 });
-    setConfig({ ...c, departments: depts, studentCount: sc, roomCount: rc, labCount: lc, gymCount: gc, maxClassSize: ms, targetLoad: validLoad, teachers, courses, rooms, studentCountQuick: sc });
+    // If user selected cohortGrades (e.g. freshmen academy, advisory groups),
+    // auto-generate cohorts for those grades so the engine creates cohort-bound sections
+    const cohortGradesArr: string[] = c.cohortGrades || [];
+    let autoCohorts: any[] | undefined;
+    if (cohortGradesArr.length > 0) {
+      const labels = ["A", "B"];
+      autoCohorts = [];
+      let idx = 0;
+      cohortGradesArr.forEach((grade: string) => {
+        labels.forEach(lbl => {
+          idx++;
+          autoCohorts!.push({
+            id: `cohort_${idx}`, name: `${grade}${lbl}`, gradeLevel: grade,
+            teacherName: "", studentCount: Math.round(sc / (cohortGradesArr.length * labels.length)),
+            parallelGroupId: "", scheduleModel: "departmentalized", partnerTeacherName: "",
+          });
+        });
+      });
+      // Tag core courses with grade levels that match cohort grades so the engine binds them
+      const gradeCourses: any[] = [];
+      courses.forEach(course => {
+        if (course.gradeLevel === "all" && course.required) {
+          cohortGradesArr.forEach((grade: string) => {
+            gradeCourses.push({
+              ...course,
+              id: `${course.id}_gr${grade}`,
+              name: `${course.name} (Gr ${grade})`,
+              gradeLevel: grade,
+            });
+          });
+        }
+      });
+      courses.push(...gradeCourses);
+    }
+
+    setConfig({
+      ...c, departments: depts, studentCount: sc, roomCount: rc, labCount: lc, gymCount: gc,
+      maxClassSize: ms, targetLoad: validLoad, teachers, courses, rooms, studentCountQuick: sc,
+      ...(autoCohorts ? { cohorts: autoCohorts } : {}),
+    });
     onNext();
   };
 
@@ -517,7 +570,7 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
                   onChange={e => { const n = [...cohorts]; n[i] = { ...n[i], gradeLevel: e.target.value }; setCohorts(n); }}
                   style={{ ...SELECT_STYLE, width: 82 }}
                 >
-                  {["K","1","2","3","4","5","6","7","8"].map(g => <option key={g} value={g}>Gr {g}</option>)}
+                  {["K","1","2","3","4","5","6","7","8","9","10","11","12"].map(g => <option key={g} value={g}>Gr {g}</option>)}
                 </select>
                 {/* Model selector */}
                 <select
