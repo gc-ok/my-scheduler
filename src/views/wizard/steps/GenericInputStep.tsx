@@ -23,7 +23,7 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
   const isTri = c.scheduleType === "trimester";
   const isTeam = c.scheduleType === "ms_team";
 
-  const isElem = c.schoolType === "elementary" || c.schoolType === "k8";
+  const isElem = c.schoolType === "elementary" || c.schoolType === "k8" || c.schoolType === "k12";
   const defaultLoad = isBlock ? 6 : (isTri ? 12 : 5);
 
   // DYNAMIC DEFAULTS BASED ON SCHOOL TYPE

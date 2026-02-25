@@ -3,6 +3,7 @@ import { COLORS } from "../../utils/theme";
 import MasterGrid from "./MasterGrid";
 import TeacherGrid from "./TeacherGrid";
 import RoomGrid from "./RoomGrid";
+import CohortGrid from "./CohortGrid";
 import { ScheduleConfig, Section, Teacher, Period, ScheduleResult, SingleScheduleResult } from "../../types";
 import { ExportFormat } from "../../hooks/useScheduleExport";
 import { Tabs, ContextualSidePanel } from "../ui/CoreUI";
@@ -291,6 +292,7 @@ export default function ScheduleGridView({ schedule, config, setSchedule, onRege
   }, [config.plcGroups]);
 
   const depts = [...new Set((secs as Section[]).map(s => s.department))];
+  const hasCohorts = (secs as Section[]).some(s => s.cohortId);
 
   const notify = (m: string, t = "info") => { setNotif({ m, t }); setTimeout(() => setNotif(null), 3000); };
   
@@ -432,6 +434,7 @@ export default function ScheduleGridView({ schedule, config, setSchedule, onRege
 
   const viewTabs = [
     { id: "grid", label: "📋 Master Grid" },
+    ...(hasCohorts ? [{ id: "cohort", label: "🏠 Cohort View" }] : []),
     { id: "teachers", label: "👨‍🏫 Teachers" },
     { id: "rooms", label: "🏫 Rooms" },
     { id: "conflicts", label: `⚠️ Issues (${confs.length})` },
@@ -559,6 +562,13 @@ export default function ScheduleGridView({ schedule, config, setSchedule, onRege
             onDragStart={onDS} onDrop={onDrop} togLock={togLock} setEditSection={setEditSection} 
             onPeriodTimeChange={handlePeriodTimeChange}
             onConflictClick={handleConflictClick}
+          />
+        )}
+        {vm === "cohort" && (
+          <CohortGrid
+            schedule={activeVariant as SingleScheduleResult}
+            config={config}
+            setEditSection={setEditSection}
           />
         )}
         {vm === "teachers" && (

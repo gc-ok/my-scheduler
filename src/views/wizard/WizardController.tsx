@@ -35,7 +35,7 @@ export default function WizardController({ step, setStep, config, setConfig, onC
   // Show recess for elementary-containing schools (not pure middle/high)
   const showRecess = !["high","6_12"].includes(config.schoolType || "") || customHasElem;
 
-  const isElemType = config.schoolType === "elementary" || config.schoolType === "k8" || customHasElem;
+  const isElemType = config.schoolType === "elementary" || config.schoolType === "k8" || config.schoolType === "k12" || customHasElem;
   const stepLabel10 = config.inputMode === "csv" ? "CSV Upload" : (isElemType ? "Cohort Setup" : "Quick Setup");
 
   const isCsvMode = config.inputMode === "csv";

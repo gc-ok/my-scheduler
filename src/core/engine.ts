@@ -440,7 +440,7 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
     const schedType = config.scheduleType || "";
     const isElemSelf = schedType === "elementary_self";
     const isElemDept = schedType === "elementary_dept";
-    const isElem = isElemSelf || isElemDept || config.schoolType === "elementary" || config.schoolType === "k8";
+    const isElem = isElemSelf || isElemDept || config.schoolType === "elementary" || config.schoolType === "k8" || config.schoolType === "k12";
 
     // Build effective course list — use user-provided courses or auto-generate defaults
     let effectiveCourses = courses.length > 0 ? [...courses] : [];
