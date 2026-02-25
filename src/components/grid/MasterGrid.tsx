@@ -124,10 +124,40 @@ export default function MasterGrid({ schedule, config, fSecs, dragItem, onDragSt
     );
   };
 
+  // Compute unscheduled totals for the summary banner
+  const totalSections = fSecs.length;
+  const unscheduledSections = fSecs.filter(s => s.period == null);
+  const scheduledCount = totalSections - unscheduledSections.length;
+  const conflictCount = fSecs.filter(s => s.hasConflict).length;
+
   return (
     <div style={{ overflowX: "auto" }}>
+      {/* Scheduling summary banner */}
+      {(unscheduledSections.length > 0 || conflictCount > 0) && (
+        <div style={{
+          padding: "8px 14px", marginBottom: 6, borderRadius: 8,
+          background: unscheduledSections.length > 0 ? `${COLORS.danger}12` : `${COLORS.warning}15`,
+          border: `1px solid ${unscheduledSections.length > 0 ? COLORS.danger : COLORS.warning}`,
+          display: "flex", alignItems: "center", gap: 16, fontSize: 12,
+        }}>
+          <span style={{ fontWeight: 700, color: unscheduledSections.length > 0 ? COLORS.danger : COLORS.warning }}>
+            {unscheduledSections.length > 0 ? "⚠️ Incomplete Schedule" : "⚠️ Conflicts Found"}
+          </span>
+          <span style={{ color: COLORS.text }}>
+            {scheduledCount}/{totalSections} sections placed
+            {unscheduledSections.length > 0 && <> · <strong style={{ color: COLORS.danger }}>{unscheduledSections.length} unscheduled</strong></>}
+            {conflictCount > 0 && <> · <strong style={{ color: COLORS.warning }}>{conflictCount} conflicts</strong></>}
+          </span>
+          {unscheduledSections.length > 0 && (
+            <span style={{ fontSize: 11, color: COLORS.textLight, marginLeft: "auto" }}>
+              Unscheduled: {[...new Set(unscheduledSections.map(s => s.courseName))].slice(0, 5).join(", ")}
+              {[...new Set(unscheduledSections.map(s => s.courseName))].length > 5 && "..."}
+            </span>
+          )}
+        </div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: `130px repeat(${allP.length}, minmax(130px, 1fr))`, gap: 0, minWidth: 130 + allP.length * 130 }}>
-        
+
         <div style={{ padding: 8, background: COLORS.primaryDark, color: COLORS.white, fontWeight: 700, fontSize: 12, borderRadius: "8px 0 0 0", display: "flex", alignItems: "center" }}>Course / Period</div>
         {allP.map((p: Period, i: number) => <PeriodHeader key={p.id} p={p} isLast={i === allP.length - 1} onTimeChange={onPeriodTimeChange} />)}
 
@@ -152,12 +182,20 @@ export default function MasterGrid({ schedule, config, fSecs, dragItem, onDragSt
         {courseIds.map((cid, ri) => {
           const cs = sectionsByCourse[cid];
           const isCore = cs[0]?.isCore;
-          
+          const unplacedForCourse = cs.filter(s => s.period == null);
+
           return (
             <React.Fragment key={cid}>
-              <div style={{ padding: "6px 8px", background: PERIOD_COLORS[ri % PERIOD_COLORS.length], borderBottom: `1px solid ${COLORS.lightGray}`, fontWeight: 600, fontSize: 11, display: "flex", flexDirection: "column", justifyContent: "center", color: COLORS.text }}>
+              <div style={{ padding: "6px 8px", background: unplacedForCourse.length > 0 ? `${COLORS.danger}10` : PERIOD_COLORS[ri % PERIOD_COLORS.length], borderBottom: `1px solid ${COLORS.lightGray}`, borderLeft: unplacedForCourse.length > 0 ? `3px solid ${COLORS.danger}` : "none", fontWeight: 600, fontSize: 11, display: "flex", flexDirection: "column", justifyContent: "center", color: COLORS.text }}>
                 <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cs[0]?.courseName || cid}</div>
-                <div style={{ fontSize: 9, color: COLORS.textLight, marginTop: 2 }}>{isCore ? "CORE" : "ELECT"} · {cs.length} sec</div>
+                <div style={{ fontSize: 9, color: COLORS.textLight, marginTop: 2 }}>
+                  {isCore ? "CORE" : "ELECT"} · {cs.length - unplacedForCourse.length}/{cs.length} placed
+                </div>
+                {unplacedForCourse.length > 0 && (
+                  <div style={{ fontSize: 8, color: COLORS.danger, fontWeight: 700, marginTop: 2 }}>
+                    ⚠️ {unplacedForCourse.length} unscheduled
+                  </div>
+                )}
               </div>
               
               {allP.map((p: Period) => {
