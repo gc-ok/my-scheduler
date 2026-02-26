@@ -14,13 +14,14 @@ import css from "./WizardController.module.css";
 
 interface WizardControllerProps {
   step: number;
+  maxStep: number;
   setStep: (step: number) => void;
   config: WizardState;
   setConfig: (config: WizardState) => void;
   onComplete: () => void;
 }
 
-export default function WizardController({ step, setStep, config, setConfig, onComplete }: WizardControllerProps) {
+export default function WizardController({ step, maxStep, setStep, config, setConfig, onComplete }: WizardControllerProps) {
   // For custom schools, check if the grade range includes elementary grades (K-5) to decide on recess
   const customRange = config.customGradeRange;
   const customHasElem = config.schoolType === "custom" && !!customRange &&
@@ -68,18 +69,18 @@ export default function WizardController({ step, setStep, config, setConfig, onC
               <div key={i} className={css.navItemContainer}>
                 <button
                   className={css.navPill}
-                  onClick={() => s.id <= step && setStep(s.id)}
-                  disabled={s.id > step}
+                  onClick={() => s.id <= maxStep && setStep(s.id)}
+                  disabled={s.id > maxStep}
                   aria-current={s.id === step ? "step" : undefined}
                   style={{
-                    cursor: s.id <= step ? "pointer" : "default",
-                    background: s.id === step ? COLORS.primary : s.id < step ? COLORS.accentLight : COLORS.lightGray,
-                    color: s.id === step ? COLORS.white : s.id < step ? COLORS.primary : COLORS.midGray,
+                    cursor: s.id <= maxStep ? "pointer" : "default",
+                    background: s.id === step ? COLORS.primary : s.id <= maxStep ? COLORS.accentLight : COLORS.lightGray,
+                    color: s.id === step ? COLORS.white : s.id <= maxStep ? COLORS.primary : COLORS.midGray,
                     fontWeight: s.id === step ? 700 : 500,
                   }}
                 >{s.label}</button>
                 {i < allSteps.length - 1 && (
-                  <div className={css.navLine} style={{ background: s.id < step ? COLORS.accent : COLORS.lightGray }} />
+                  <div className={css.navLine} style={{ background: s.id < maxStep ? COLORS.accent : COLORS.lightGray }} />
                 )}
               </div>
             ))}

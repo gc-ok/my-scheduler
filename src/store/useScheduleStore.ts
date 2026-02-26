@@ -10,6 +10,7 @@ export interface PendingRestore {
 // Define the state shape
 interface ScheduleState {
   step: number;
+  maxStep: number; // Highest step the user has ever reached — controls forward pill navigation
   config: WizardState;
   schedule: ScheduleResult | null;
   isGenerating: boolean;
@@ -33,6 +34,7 @@ interface ScheduleActions {
 
 const initialState: ScheduleState = {
   step: 0,
+  maxStep: 0,
   config: {},
   schedule: null,
   isGenerating: false,
@@ -45,8 +47,8 @@ const initialState: ScheduleState = {
 const useScheduleStore = create<ScheduleState & ScheduleActions>((set, get) => ({
   ...initialState,
 
-  // Actions
-  setStep: (step) => set({ step }),
+  // Actions — setStep advances maxStep whenever moving forward
+  setStep: (step) => set((state) => ({ step, maxStep: Math.max(state.maxStep, step) })),
   setConfig: (config) => set({ config }),
   updateConfig: (update) => set({ config: { ...get().config, ...update } }),
   setSchedule: (schedule) => set({ schedule }),

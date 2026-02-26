@@ -68,12 +68,17 @@ interface TeacherGridProps {
   onTeacherClick?: (teacher: Teacher) => void;
   onEditTeacher?: (teacher: Teacher) => void;
   filterTeacherId?: string | null;
+  // Drag-drop: called when a section is dropped onto a different teacher/period cell
+  onSectionDrop?: (sectionId: string, newTeacherId: string, newPeriod: string | number) => void;
 }
 
-export default function TeacherGrid({ schedule, config, fDept, setEditSection, onTeacherClick, onEditTeacher, filterTeacherId }: TeacherGridProps) {
+export default function TeacherGrid({ schedule, config, fDept, setEditSection, onTeacherClick, onEditTeacher, filterTeacherId, onSectionDrop }: TeacherGridProps) {
   const { periods: allP = [], teachers = [], sections: secs = [], teacherSchedule = {} } = schedule;
   const numWaves = Number(config?.lunchConfig?.numWaves) || 3; // Enforce Number type to prevent Array.from crash
-  
+
+  // Local drag state — tracks which section is being dragged
+  const [dragSection, setDragSection] = useState<Section | null>(null);
+
   // OPTIMIZATION: Create a hash map for O(1) section lookup by teacher and period
   const sectionMap = useMemo(() => {
     const map: Record<string, Record<string, Section>> = {};
@@ -106,7 +111,7 @@ export default function TeacherGrid({ schedule, config, fDept, setEditSection, o
     });
   }, [teachers, fDept, filterTeacherId]);
 
-  const RenderCell = ({ s, status, p, t, dayLabel, termCount }: { s?: Section; status: string; p: Period; t: Teacher; dayLabel: string; termCount: number }) => {
+  const RenderCell = ({ s, status, p, t, dayLabel, termCount, targetPid }: { s?: Section; status: string; p: Period; t: Teacher; dayLabel: string; termCount: number; targetPid: string | number }) => {
     const isLunch = status === "LUNCH";
     const isPLC = status === "PLC";
     const isRecess = p.type === "recess";
@@ -134,10 +139,18 @@ export default function TeacherGrid({ schedule, config, fDept, setEditSection, o
     }
 
     if (s) {
+      const isDragging = dragSection?.id === s.id;
       return (
-        <div onClick={() => setEditSection?.(s)} style={{ ...baseStyle, background: `${getDeptColor(s.department)}15`, borderLeft: `3px solid ${getDeptColor(s.department)}`, padding: "2px 6px", flexDirection: "column", justifyContent: "center", cursor: "pointer" }}>
+        <div
+          onClick={() => setEditSection?.(s)}
+          draggable={!s.locked}
+          onDragStart={() => { if (!s.locked) setDragSection(s); }}
+          onDragEnd={() => setDragSection(null)}
+          style={{ ...baseStyle, background: `${getDeptColor(s.department)}15`, borderLeft: `3px solid ${getDeptColor(s.department)}`, padding: "2px 6px", flexDirection: "column", justifyContent: "center", cursor: s.locked ? "pointer" : "grab", opacity: isDragging ? 0.3 : 1 }}
+          title={s.locked ? "Locked (cannot drag)" : "Drag to reassign period or teacher"}
+        >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontWeight: 700, fontSize: 10, color: COLORS.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.courseName} {isCoTeaching && "🤝"}</span>
+            <span style={{ fontWeight: 700, fontSize: 10, color: COLORS.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.courseName} {isCoTeaching && "🤝"}{!s.locked && <span style={{ opacity: 0.4, fontSize: 8 }}> ⠿</span>}</span>
             {dayLabel && <span style={{ fontSize: 7, background: COLORS.darkGray, color: COLORS.white, padding: "1px 3px", borderRadius: 3 }}>{dayLabel}</span>}
           </div>
           <span style={{ fontSize: 8, fontWeight: 500, color: COLORS.textLight }}>{s.roomName} · 👥{s.enrollment}</span>
@@ -151,9 +164,23 @@ export default function TeacherGrid({ schedule, config, fDept, setEditSection, o
     if (isNT) return <div style={{ ...baseStyle, color: COLORS.midGray, fontSize: 9, alignItems: "center", justifyContent: "center" }}>{(p.type||"").toUpperCase()}</div>;
     if (isPLC) return <div style={{ ...baseStyle, color: COLORS.secondary, fontSize: 9, fontWeight: 600, alignItems: "center", justifyContent: "center", background: `${COLORS.secondary}15` }}>🤝 PLC {dayLabel}</div>;
 
+    const isDragOver = !!dragSection && !s;
     return (
-      <div onClick={() => setEditSection?.({ id: `manual-${Date.now()}`, courseName: "New Class", teacher: t.id, period: dayLabel ? `${dayLabel}-${p.id}` : p.id, department: t.departments?.[0] || "General", enrollment: 25, maxSize: 30, locked: true })} style={{ ...baseStyle, cursor: "pointer", flexDirection: "column", alignItems: "center", justifyContent: "center" }} className="empty-slot-hover">
-        <div style={{ color: COLORS.midGray, fontSize: 8, fontStyle: "italic" }}>Plan {dayLabel}</div>
+      <div
+        onClick={() => setEditSection?.({ id: `manual-${Date.now()}`, courseName: "New Class", teacher: t.id, period: targetPid, department: t.departments?.[0] || "General", enrollment: 25, maxSize: 30, locked: true })}
+        onDragOver={e => { if (dragSection) e.preventDefault(); }}
+        onDrop={() => {
+          if (dragSection && onSectionDrop) {
+            onSectionDrop(dragSection.id, t.id, targetPid);
+            setDragSection(null);
+          }
+        }}
+        style={{ ...baseStyle, cursor: "pointer", flexDirection: "column", alignItems: "center", justifyContent: "center", background: isDragOver ? `${COLORS.accent}20` : baseStyle.background, border: isDragOver ? `2px dashed ${COLORS.accent}` : undefined }}
+        className="empty-slot-hover"
+      >
+        <div style={{ color: isDragOver ? COLORS.accent : COLORS.midGray, fontSize: 8, fontStyle: "italic" }}>
+          {isDragOver ? "Drop here" : `Plan ${dayLabel}`}
+        </div>
       </div>
     );
   };
@@ -185,14 +212,24 @@ export default function TeacherGrid({ schedule, config, fDept, setEditSection, o
             {allP.map((p: Period) => {
               const isNT = p.type === "unit_lunch" || p.type === "win";
               return (
-                <div key={`${t.id}-${p.id}`} style={{ borderBottom: `1px solid ${COLORS.lightGray}`, borderRight: `1px solid ${COLORS.lightGray}`, minHeight: 60, display: "flex", flexDirection: "column" }}>
+                <div
+                  key={`${t.id}-${p.id}`}
+                  onDragOver={e => { if (dragSection && !isNT) e.preventDefault(); }}
+                  onDrop={() => {
+                    if (dragSection && !isNT && onSectionDrop) {
+                      const targetPid = terms.length > 1 ? `${terms[0]}-${p.id}` : p.id;
+                      onSectionDrop(dragSection.id, t.id, targetPid);
+                      setDragSection(null);
+                    }
+                  }}
+                  style={{ borderBottom: `1px solid ${COLORS.lightGray}`, borderRight: `1px solid ${COLORS.lightGray}`, minHeight: 60, display: "flex", flexDirection: "column" }}
+                >
                   {terms.map(term => {
                     const searchPid = term ? `${term}-${p.id}` : p.id;
                     const s = sectionMap[t.id]?.[searchPid];
                     const status = teacherSchedule?.[t.id]?.[searchPid];
-                    
-                    if (isNT && term !== terms[0]) return null; 
-                    return <RenderCell key={term || "default"} s={s} status={status} p={p} t={t} dayLabel={term} termCount={isNT ? 1 : terms.length} />;
+                    if (isNT && term !== terms[0]) return null;
+                    return <RenderCell key={term || "default"} s={s} status={status} p={p} t={t} dayLabel={term} termCount={isNT ? 1 : terms.length} targetPid={searchPid} />;
                   })}
                 </div>
               );

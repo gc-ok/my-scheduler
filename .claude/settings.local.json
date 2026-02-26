@@ -5,7 +5,9 @@
       "WebFetch(domain:github.com)",
       "Bash(cd:*)",
       "Bash(gh api:*)",
-      "Bash(python -c:*)"
+      "Bash(python -c:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx vite build)"
     ]
   }
 }

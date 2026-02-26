@@ -10,6 +10,73 @@ interface StepProps {
   onBack: () => void;
 }
 
+// ---------------------------------------------------------------------------
+// Teacher list paste parser
+// Handles: newline list, CSV, TSV; first+last split columns; optional Floater column
+// ---------------------------------------------------------------------------
+function parseTeacherList(text: string): { name: string; isFloater: boolean }[] {
+  if (!text.trim()) return [];
+  const rows = text.trim().split(/\r?\n/).filter(r => r.trim());
+
+  const hasTabs  = rows.some(r => r.includes('\t'));
+  const hasCommas = !hasTabs && rows.some(r => r.includes(','));
+
+  const splitRow = (r: string): string[] => {
+    if (hasTabs)    return r.split('\t').map(c => c.trim().replace(/^"|"$/g, ''));
+    if (hasCommas)  return r.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+    return [r.trim()];
+  };
+
+  const cells = rows.map(splitRow);
+  const colCount = Math.max(...cells.map(c => c.length), 1);
+
+  const FLOATER_VALS = new Set(['yes','y','true','x','1','floater','✓']);
+  const isFloaterVal = (v: string) => FLOATER_VALS.has(v.trim().toLowerCase());
+
+  // Detect optional header row
+  const HEADER_WORDS = new Set(['name','first','last','teacher','staff','floater','float','dept','email','id']);
+  const firstRow = cells[0] || [];
+  const looksLikeHeader = firstRow.some(c => HEADER_WORDS.has(c.toLowerCase().replace(/\s+/g,'')));
+  const headerRow  = looksLikeHeader ? firstRow : null;
+  const dataRows   = looksLikeHeader ? cells.slice(1) : cells;
+  if (!dataRows.length) return [];
+
+  // Single-column: just names
+  if (colCount === 1) {
+    return dataRows.map(r => r[0]?.trim()).filter(Boolean).map(name => ({ name, isFloater: false }));
+  }
+
+  // Multi-column: determine which columns are names vs floater
+  let nameColIndices: number[] = [];
+  let floaterColIndex = -1;
+
+  if (headerRow) {
+    headerRow.forEach((h, ci) => {
+      const lh = h.toLowerCase().replace(/\s+/g,'');
+      if (['first','last','name','teacher','staff','firstname','lastname'].some(k => lh.includes(k))) nameColIndices.push(ci);
+      else if (lh.includes('float')) floaterColIndex = ci;
+    });
+  }
+
+  if (nameColIndices.length === 0) {
+    // Heuristic scan: find boolean-looking columns (floater) vs name-looking columns
+    for (let ci = 0; ci < colCount; ci++) {
+      const vals = dataRows.map(r => (r[ci] || '').trim()).filter(Boolean);
+      if (!vals.length) continue;
+      const allBool = vals.every(v => isFloaterVal(v) || v === '');
+      if (allBool && floaterColIndex === -1) { floaterColIndex = ci; continue; }
+      if (vals.every(v => v.length < 40 && !/^\d+$/.test(v))) nameColIndices.push(ci);
+    }
+    if (nameColIndices.length === 0) nameColIndices = [0];
+  }
+
+  return dataRows.map(row => {
+    const name = nameColIndices.map(ci => (row[ci] || '').trim()).filter(Boolean).join(' ').trim();
+    const isFloater = floaterColIndex >= 0 ? isFloaterVal(row[floaterColIndex] || '') : false;
+    return name ? { name, isFloater } : null;
+  }).filter(Boolean) as { name: string; isFloater: boolean }[];
+}
+
 const INPUT_STYLE = {
   width: "100%", padding: "9px 12px", borderRadius: 8,
   border: `1px solid ${COLORS.lightGray}`, fontSize: 14, outline: "none",
@@ -61,6 +128,9 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
   
   const [tl, setTl] = useState(c.targetLoad ?? defaultLoad);
   const [expanded, setExpanded] = useState<number | null>(null);
+  // Paste-import state
+  const [pasteDeptIdx, setPasteDeptIdx] = useState<number | null>(null);
+  const [pasteText, setPasteText] = useState('');
 
   // TEAM-BASED STATE (ms_team)
   const DEFAULT_TEAMS = [
@@ -172,14 +242,26 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
   const planP = c.planPeriodsPerDay ?? 1;
   const lunchConsumes = c.lunchModel !== "separate" ? 1 : 0;
   const winConsumes = c.winEnabled && c.winModel !== "separate" ? 1 : 0;
-  
+
   const dailyTeachable = Math.max(1, periodCount - planP - lunchConsumes - winConsumes);
-  
+
   let maxTeachable = dailyTeachable;
-  if (isBlock) maxTeachable = dailyTeachable * 2; 
-  if (isTri) maxTeachable = dailyTeachable * 3;   
-  
+  if (isBlock) maxTeachable = dailyTeachable * 2;
+  if (isTri) maxTeachable = dailyTeachable * 3;
+
   const validLoad = Math.min(tl, maxTeachable);
+
+  // Build a human-readable explanation of how maxTeachable was calculated
+  const maxTeachableExplain = (() => {
+    const parts: string[] = [`${periodCount} periods`];
+    if (planP > 0) parts.push(`−${planP} Plan`);
+    if (lunchConsumes > 0) parts.push(`−${lunchConsumes} Lunch`);
+    if (winConsumes > 0) parts.push(`−${winConsumes} WIN`);
+    const dailyStr = `${parts.join(" ")} = ${dailyTeachable}/day`;
+    if (isBlock) return `Max: ${maxTeachable} (${dailyStr} × 2 semesters). If this seems wrong, go back to Bell Schedule or Plan & PLC steps.`;
+    if (isTri) return `Max: ${maxTeachable} (${dailyStr} × 3 trimesters). If this seems wrong, go back to Bell Schedule or Plan & PLC steps.`;
+    return `Max: ${maxTeachable} (${dailyStr}). If this seems wrong, go back to Bell Schedule or Plan & PLC steps.`;
+  })();
   
   const coreDepts = depts.filter(d => d.required);
 
@@ -357,20 +439,24 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
     depts.forEach(dept => {
       const tc = dept.teacherCount || 1;
       const names = dept.teacherNames || [];
-      const floaters = dept.teacherFloaters || []; 
-      
+      const floaters = dept.teacherFloaters || [];
+      const loadOverrides: (number | undefined)[] = dept.teacherLoadOverrides || [];
+      const extraDepts: string[][] = dept.teacherExtraDepts || [];
+
       for (let i = 0; i < tc; i++) {
-        teachers.push({ 
-          id: `${dept.id}_t${i + 1}`, 
-          name: names[i] || `${dept.name} Teacher ${i + 1}`, 
-          departments: [dept.id], 
-          planPeriods: planP, 
-          isFloater: floaters[i] || false 
+        teachers.push({
+          id: `${dept.id}_t${i + 1}`,
+          name: names[i] || `${dept.name} Teacher ${i + 1}`,
+          departments: [dept.id, ...(extraDepts[i] || [])],
+          planPeriods: planP,
+          isFloater: floaters[i] || false,
         });
       }
       const isPE = dept.id === "pe" || dept.name.toLowerCase().includes("pe") || dept.name.toLowerCase().includes("physical");
       const sectionMax = isPE ? Math.max(ms, 40) : ms;
-      const sectionsNeeded = dept.required ? Math.max(tc * validLoad, Math.ceil(sc / sectionMax)) : tc * validLoad;
+      // Sum per-teacher loads (use individual override if set, else global validLoad)
+      const totalLoad = Array.from({ length: tc }, (_, ti) => loadOverrides[ti] ?? validLoad).reduce((a: number, b: number) => a + b, 0);
+      const sectionsNeeded = dept.required ? Math.max(totalLoad, Math.ceil(sc / sectionMax)) : totalLoad;
       courses.push({ id: `${dept.id}_101`, name: dept.name, department: dept.id, sections: Math.max(1, sectionsNeeded), maxSize: sectionMax, required: dept.required, roomType: dept.roomType || "regular", gradeLevel: "all" });
     });
     for (let i = 0; i < rc; i++) rooms.push({ id: `room_${i + 1}`, name: `Room ${101 + i}`, type: "regular", capacity: ms });
@@ -723,7 +809,7 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 16 }}>
           <NumInput label="Total Students" min={10} max={5000} value={sc} onChange={setSc} />
           <NumInput label="Max Class Size" min={10} max={50} value={ms} onChange={setMs} />
-          <NumInput label={isBlock || isTri ? "Total Sections per Teacher (Yearly)" : "Classes/Day per Teacher"} min={1} max={20} value={tl} onChange={setTl} helperText={`Max possible: ${maxTeachable}`} />
+          <NumInput label={isBlock || isTri ? "Total Sections per Teacher (Yearly)" : "Classes/Day per Teacher"} min={1} max={20} value={tl} onChange={setTl} helperText={maxTeachableExplain} />
         </div>
         <div style={{ padding: "10px 14px", borderRadius: 8, marginBottom: 16, fontSize: 13, background: COLORS.accentLight, color: COLORS.darkGray }}>
           <strong>Student Load:</strong> {coreDepts.length} core classes + {Math.max(0, ((isBlock ? periodCount * 2 : (isTri ? periodCount * 3 : periodCount))) - coreDepts.length - (c.lunchModel !== "separate" ? (isBlock ? 2 : (isTri ? 3 : 1)) : 0))} elective/PE slots to fill per student.
@@ -756,21 +842,141 @@ export function GenericInputStep({ config: c, setConfig, onNext, onBack }: StepP
             </div>
             {expanded === i && (
               <div style={{ padding: 12, background: COLORS.white, border: `1px solid ${COLORS.lightGray}`, borderTop: "none", borderRadius: "0 0 8px 8px" }}>
-                <p style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 8 }}>Name teachers & assign floaters:</p>
-                {Array.from({ length: d.teacherCount || 1 }, (_, ti) => (
-                  <div key={ti} style={{ display: "flex", gap: 8, marginBottom: 6, alignItems: "center" }}>
-                    <span style={{ fontSize: 12, color: COLORS.textLight, width: 24 }}>{ti + 1}.</span>
-                    <input value={(d.teacherNames || [])[ti] || ""} onChange={e => { const n = [...(d.teacherNames || [])]; n[ti] = e.target.value; upD(i, "teacherNames", n); }} placeholder={`${d.name} Teacher ${ti + 1}`} style={{ ...INPUT_STYLE, flex: 1, width: "auto" }} />
-                    <label style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 4, cursor: "pointer", color: COLORS.text }}>
-                      <input type="checkbox" checked={(d.teacherFloaters || [])[ti] || false} onChange={e => { const f = [...(d.teacherFloaters || [])]; f[ti] = e.target.checked; upD(i, "teacherFloaters", f); }} /> Is Floater
-                    </label>
+                {pasteDeptIdx === i ? (
+                  /* ── PASTE MODE ── */
+                  <div>
+                    <p style={{ fontSize: 12, color: COLORS.textLight, margin: "0 0 8px 0" }}>
+                      Paste your teacher list below. Accepts newline, CSV, or tab-separated.
+                      You can include a <strong>Floater</strong> column (y/n) and <strong>First / Last</strong> name columns — the parser figures it out automatically.
+                    </p>
+                    <textarea
+                      value={pasteText}
+                      onChange={e => setPasteText(e.target.value)}
+                      rows={6}
+                      placeholder={"Examples:\nSmith, John\nJones, Mary, yes\nFirst\tLast\tFloater\nSmith\tJohn\tn"}
+                      style={{ ...INPUT_STYLE, fontFamily: "monospace", fontSize: 12, resize: "vertical" }}
+                    />
+                    <div style={{ fontSize: 10, color: COLORS.textLight, marginTop: 4, lineHeight: 1.5 }}>
+                      <strong>Accepted formats:</strong> one name per line · CSV (comma) · TSV (tab-paste from Excel/Sheets) · First/Last in separate columns · optional Floater column (y/yes/x = floater)
+                    </div>
+                    {/* Preview */}
+                    {parseTeacherList(pasteText).length > 0 && (
+                      <div style={{ marginTop: 10, padding: 8, background: COLORS.offWhite, borderRadius: 6 }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, margin: "0 0 6px 0", color: COLORS.text }}>
+                          Preview — {parseTeacherList(pasteText).length} teacher{parseTeacherList(pasteText).length !== 1 ? "s" : ""} detected:
+                        </p>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 3, maxHeight: 180, overflowY: "auto" }}>
+                          {parseTeacherList(pasteText).map((t, ti) => (
+                            <div key={ti} style={{ fontSize: 12, display: "flex", gap: 8, alignItems: "center" }}>
+                              <span style={{ width: 20, color: COLORS.textLight, flexShrink: 0 }}>{ti + 1}.</span>
+                              <span style={{ flex: 1 }}>{t.name}</span>
+                              {t.isFloater && <span style={{ fontSize: 10, background: COLORS.accentLight, color: COLORS.primary, padding: "1px 6px", borderRadius: 10 }}>🎈 Floater</span>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                      <Btn
+                        small
+                        onClick={() => {
+                          const parsed = parseTeacherList(pasteText);
+                          if (!parsed.length) return;
+                          const d2 = [...depts];
+                          d2[i] = { ...d2[i], teacherNames: parsed.map(p => p.name), teacherFloaters: parsed.map(p => p.isFloater), teacherCount: parsed.length, teacherLoadOverrides: [], teacherExtraDepts: [] };
+                          setDepts(d2);
+                          setPasteDeptIdx(null);
+                          setPasteText('');
+                        }}
+                        disabled={parseTeacherList(pasteText).length === 0}
+                      >
+                        Apply ({parseTeacherList(pasteText).length})
+                      </Btn>
+                      <Btn variant="secondary" small onClick={() => { setPasteDeptIdx(null); setPasteText(''); }}>Cancel</Btn>
+                    </div>
                   </div>
-                ))}
+                ) : (
+                  /* ── INDIVIDUAL MODE ── */
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <p style={{ fontSize: 12, color: COLORS.textLight, margin: 0 }}>Name teachers, set load & cross-dept assignments:</p>
+                      <Btn variant="ghost" small onClick={() => { setPasteDeptIdx(i); setPasteText(''); }}>📋 Paste List</Btn>
+                    </div>
+                    {Array.from({ length: d.teacherCount || 1 }, (_, ti) => {
+                      const otherDepts = depts.filter((_, j) => j !== i);
+                      const extra: string[] = (d.teacherExtraDepts || [])[ti] || [];
+                      const loadVal: number = (d.teacherLoadOverrides || [])[ti] ?? validLoad;
+                      return (
+                        <div key={ti} style={{ marginBottom: 10, paddingBottom: 8, borderBottom: `1px solid ${COLORS.lightGray}` }}>
+                          {/* Row 1: name + floater */}
+                          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                            <span style={{ fontSize: 12, color: COLORS.textLight, width: 24, flexShrink: 0 }}>{ti + 1}.</span>
+                            <input
+                              value={(d.teacherNames || [])[ti] || ""}
+                              onChange={e => { const n = [...(d.teacherNames || [])]; n[ti] = e.target.value; upD(i, "teacherNames", n); }}
+                              placeholder={`${d.name} Teacher ${ti + 1}`}
+                              style={{ ...INPUT_STYLE, flex: 1, width: "auto" }}
+                            />
+                            <label style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 4, cursor: "pointer", color: COLORS.text, whiteSpace: "nowrap" }}>
+                              <input type="checkbox" checked={(d.teacherFloaters || [])[ti] || false} onChange={e => { const f = [...(d.teacherFloaters || [])]; f[ti] = e.target.checked; upD(i, "teacherFloaters", f); }} />
+                              Floater
+                            </label>
+                          </div>
+                          {/* Row 2: load override + also-teaches */}
+                          <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 5, marginLeft: 32, flexWrap: "wrap" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                              <span style={{ fontSize: 11, color: COLORS.textLight }}>Load:</span>
+                              <input
+                                type="number" min={1} max={maxTeachable}
+                                value={loadVal}
+                                onChange={e => {
+                                  const arr = [...(d.teacherLoadOverrides || Array.from({ length: d.teacherCount || 1 }, () => undefined as any))];
+                                  arr[ti] = parseInt(e.target.value) || validLoad;
+                                  upD(i, "teacherLoadOverrides", arr);
+                                }}
+                                style={{ ...SMALL_INPUT, width: 42 }}
+                                title="Classes/day this teacher teaches (overrides the department default)"
+                              />
+                              <span style={{ fontSize: 11, color: COLORS.textLight }}>classes</span>
+                            </div>
+                            {otherDepts.length > 0 && (
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                <span style={{ fontSize: 11, color: COLORS.textLight, whiteSpace: "nowrap" }}>Also teaches:</span>
+                                {otherDepts.map(od => {
+                                  const checked = extra.includes(od.id);
+                                  return (
+                                    <label key={od.id} style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 3, cursor: "pointer", background: checked ? COLORS.accentLight : "transparent", padding: "2px 6px", borderRadius: 10, border: `1px solid ${checked ? COLORS.accent : COLORS.lightGray}` }}>
+                                      <input
+                                        type="checkbox" checked={checked}
+                                        onChange={e => {
+                                          const newEx = e.target.checked ? [...extra, od.id] : extra.filter((id: string) => id !== od.id);
+                                          const arr = [...(d.teacherExtraDepts || Array.from({ length: d.teacherCount || 1 }, () => [] as string[]))];
+                                          arr[ti] = newEx;
+                                          upD(i, "teacherExtraDepts", arr);
+                                        }}
+                                      />
+                                      {od.name || od.id}
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
             <div style={{ fontSize: 11, color: COLORS.textLight, padding: "4px 10px" }}>
-              → {d.required ? `${Math.max((d.teacherCount || 1) * validLoad, Math.ceil(sc / ms))}` : `${(d.teacherCount || 1) * validLoad}`} sections
-              {d.required ? " (core: every student takes 1)" : " (elective)"}
+              {(() => {
+                const tc2 = d.teacherCount || 1;
+                const overrides2: (number | undefined)[] = d.teacherLoadOverrides || [];
+                const totalLoad2 = Array.from({ length: tc2 }, (_, ti) => overrides2[ti] ?? validLoad).reduce((a: number, b: number) => a + b, 0);
+                const cnt = d.required ? Math.max(totalLoad2, Math.ceil(sc / ms)) : totalLoad2;
+                return <>→ {cnt} sections{d.required ? " (core: every student takes 1)" : " (elective)"}</>;
+              })()}
             </div>
           </div>
         ))}

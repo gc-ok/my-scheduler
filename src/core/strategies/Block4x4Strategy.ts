@@ -1,4 +1,15 @@
 // src/core/strategies/Block4x4Strategy.ts
+//
+// ⚠️  DEAD CODE — This file is NOT imported anywhere.
+//
+// The active Block4x4Strategy is defined inside ScheduleStrategies.ts and imported
+// from there by engine.ts.  That version inherits BaseStrategy.execute() which gives
+// it full backtracking, room-capacity checks, cohort tracking, parallel block support,
+// travel-time checking, and course-relationship costs that this standalone file lacks.
+//
+// Do NOT wire this file in without first reconciling it with BaseStrategy.execute().
+// It is kept here only for reference.
+//
 import { BaseStrategy, ScheduleConflict } from './ScheduleStrategies';
 import { Section, Period, Room } from '../../types';
 

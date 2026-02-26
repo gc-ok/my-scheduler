@@ -14,6 +14,7 @@ export default function App() {
   // Select state and actions from the Zustand store
   const {
     step,
+    maxStep,
     config,
     schedule,
     isGenerating,
@@ -156,7 +157,7 @@ export default function App() {
   return (
     <div className={css.root}>
       {errorState && <ErrorModal />}
-      <WizardController step={step} setStep={setStep} config={config} setConfig={setConfig} onComplete={generate} />
+      <WizardController step={step} maxStep={maxStep} setStep={setStep} config={config} setConfig={setConfig} onComplete={generate} />
     </div>
   );
 }

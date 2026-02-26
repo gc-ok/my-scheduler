@@ -317,10 +317,38 @@ export default function ScheduleGridView({ schedule, config, setSchedule, onRege
     });
   };
   
-  const pushH = (variantState: SingleScheduleResult) => { 
-    const h = hist.slice(0, hIdx + 1); 
-    h.push(JSON.parse(JSON.stringify(variantState))); 
-    setHist(h); setHI(h.length - 1); 
+  const pushH = (variantState: SingleScheduleResult) => {
+    const h = hist.slice(0, hIdx + 1);
+    h.push(JSON.parse(JSON.stringify(variantState)));
+    setHist(h); setHI(h.length - 1);
+  };
+
+  // After any manual section mutation, purge stale conflict entries and recompute stats
+  const reconcileVariant = (variant: SingleScheduleResult): SingleScheduleResult => {
+    const sections = variant.sections || [];
+    const sectionIds = new Set(sections.map(s => s.id));
+
+    // Drop conflicts whose referenced section no longer exists
+    const cleanConflicts = (variant.conflicts || []).filter(c =>
+      !c.sectionId || sectionIds.has(c.sectionId)
+    );
+
+    // Recompute basic stats from the live sections array
+    const totalSections = sections.length;
+    const scheduledCount = sections.filter(s => s.period != null).length;
+    const conflictCount = sections.filter(s => s.hasConflict).length;
+    const prevStats = variant.stats || {};
+
+    return {
+      ...variant,
+      conflicts: cleanConflicts,
+      stats: {
+        ...prevStats,
+        totalSections,
+        scheduledCount,
+        conflictCount,
+      },
+    };
   };
 
   useEffect(() => {
@@ -363,10 +391,10 @@ export default function ScheduleGridView({ schedule, config, setSchedule, onRege
 
   const handleMoveToPeriod = (section: Section, periodId: string | number) => {
     const newSections = secs.map((s: Section) => s.id === section.id ? { ...s, period: periodId, hasConflict: false, conflictReason: "" } : s);
-    const newVariantState = { ...activeVariant, sections: newSections } as SingleScheduleResult;
+    const newVariantState = reconcileVariant({ ...activeVariant, sections: newSections } as SingleScheduleResult);
     pushH(newVariantState);
     setActiveVariant(newVariantState);
-    setPanelSection(null); // Close panel after action
+    setPanelSection(null);
     notify(`✅ Moved ${section.courseName} to ${periodList.find((p: Period)=>p.id===periodId)?.label}`, "success");
   };
 
@@ -424,10 +452,26 @@ export default function ScheduleGridView({ schedule, config, setSchedule, onRege
   const onDrop = (tp: string | number) => {
     if (!dragItem) return;
     const newSections = secs.map((s: Section) => s.id === dragItem.id ? { ...s, period: tp, hasConflict: false, conflictReason: "" } : s);
-    const newVariantState = { ...activeVariant, sections: newSections } as SingleScheduleResult;
-    pushH(newVariantState); 
-    setActiveVariant(newVariantState); 
+    const newVariantState = reconcileVariant({ ...activeVariant, sections: newSections } as SingleScheduleResult);
+    pushH(newVariantState);
+    setActiveVariant(newVariantState);
     setDI(null);
+  };
+
+  // Teacher-grid drag-drop: reassign period and/or teacher
+  const handleTeacherGridDrop = (sectionId: string, newTeacherId: string, newPeriod: string | number) => {
+    const section = secs.find((s: Section) => s.id === sectionId);
+    if (!section) return;
+    const newTeacherObj = (teachers as Teacher[]).find(t => t.id === newTeacherId);
+    const newSections = secs.map((s: Section) =>
+      s.id === sectionId
+        ? { ...s, period: newPeriod, teacher: newTeacherId, teacherName: newTeacherObj?.name || s.teacherName, hasConflict: false, conflictReason: "" }
+        : s
+    );
+    const newVariantState = reconcileVariant({ ...activeVariant, sections: newSections } as SingleScheduleResult);
+    pushH(newVariantState);
+    setActiveVariant(newVariantState);
+    notify(`✅ Moved to ${newTeacherObj?.name || "teacher"} · ${periodList.find((p: Period) => p.id === newPeriod)?.label || newPeriod}`, "success");
   };
   
   const togLock = (id: string) => { 
@@ -461,10 +505,10 @@ export default function ScheduleGridView({ schedule, config, setSchedule, onRege
           section={editSection} schedule={activeVariant as SingleScheduleResult} config={config} onClose={() => setEditSection(null)}
           onDelete={(id) => {
             const newSections = secs.filter((s: Section) => s.id !== id);
-            const newVariantState = { ...activeVariant, sections: newSections } as SingleScheduleResult;
-            pushH(newVariantState); 
-            setActiveVariant(newVariantState); 
-            setEditSection(null); 
+            const newVariantState = reconcileVariant({ ...activeVariant, sections: newSections } as SingleScheduleResult);
+            pushH(newVariantState);
+            setActiveVariant(newVariantState);
+            setEditSection(null);
             notify("🗑️ Class removed");
           }}
           onSave={(updated) => {
@@ -472,25 +516,37 @@ export default function ScheduleGridView({ schedule, config, setSchedule, onRege
             const teacherObj = (teachers as Teacher[]).find(t => t.id === updated.teacher);
             updated.teacherName = teacherObj?.name || "Unassigned";
             updated.coTeacherName = updated.coTeacher ? (teachers as Teacher[]).find((t: Teacher) => t.id === updated.coTeacher)?.name : null;
-            
+
             // --- CRITICAL FIX: SAFELY PARSE THE PERIOD STRING ---
-            updated.period = isNaN(updated.period) ? updated.period : Number(updated.period); 
+            updated.period = isNaN(updated.period) ? updated.period : Number(updated.period);
             updated.enrollment = parseInt(updated.enrollment);
-            
+
             const newSections = exists ? secs.map((s: Section) => s.id === updated.id ? updated : s) : [...secs, updated];
-            const newVariantState = { ...activeVariant, sections: newSections } as SingleScheduleResult;
+            const newVariantState = reconcileVariant({ ...activeVariant, sections: newSections } as SingleScheduleResult);
             pushH(newVariantState);
             setActiveVariant(newVariantState);
-            setEditSection(null); 
+            setEditSection(null);
             notify("✅ Schedule updated");
           }}
         />
       )}
 
       {editTeacher && (
-        <EditTeacherModal teacher={editTeacher} onClose={() => setEditTeacher(null)} onSave={() => {
+        <EditTeacherModal teacher={editTeacher} onClose={() => setEditTeacher(null)} onSave={(updated: Teacher) => {
+            // 1. Update the teacher record in the variant's teacher list
+            const newTeachers = (teachers as Teacher[]).map(t => t.id === updated.id ? updated : t);
+            // 2. Patch teacherName / coTeacherName on every section referencing this teacher
+            const newSections = secs.map((s: Section) => {
+              let patched = s;
+              if (s.teacher === updated.id) patched = { ...patched, teacherName: updated.name };
+              if (s.coTeacher === updated.id) patched = { ...patched, coTeacherName: updated.name };
+              return patched;
+            });
+            const newVariantState = { ...activeVariant, teachers: newTeachers, sections: newSections } as SingleScheduleResult;
+            pushH(newVariantState);
+            setActiveVariant(newVariantState);
             setEditTeacher(null);
-            notify("Teacher updated. Full refactor needed for this change.", "warning");
+            notify("✅ Teacher updated");
           }}
         />
       )}
@@ -567,9 +623,9 @@ export default function ScheduleGridView({ schedule, config, setSchedule, onRege
 
       <div style={{ flex: 1, padding: 16, overflow: "auto", background: COLORS.offWhite }}>
         {vm === "grid" && (
-          <MasterGrid 
-            schedule={activeVariant as SingleScheduleResult} config={config} fSecs={fSecs} dragItem={dragItem} 
-            onDragStart={onDS} onDrop={onDrop} togLock={togLock} setEditSection={setEditSection} 
+          <MasterGrid
+            schedule={activeVariant as SingleScheduleResult} config={config} fSecs={fSecs} dragItem={dragItem}
+            onDragStart={onDS} onDrop={onDrop} togLock={togLock} setEditSection={setEditSection}
             onPeriodTimeChange={handlePeriodTimeChange}
             onConflictClick={handleConflictClick}
           />
@@ -582,11 +638,12 @@ export default function ScheduleGridView({ schedule, config, setSchedule, onRege
           />
         )}
         {vm === "teachers" && (
-          <TeacherGrid 
-            schedule={activeVariant as SingleScheduleResult} config={config} fDept={fDept} setEditSection={setEditSection} 
-            onTeacherClick={(t: Teacher) => setAvailTeacher(t)} 
+          <TeacherGrid
+            schedule={activeVariant as SingleScheduleResult} config={config} fDept={fDept} setEditSection={setEditSection}
+            onTeacherClick={(t: Teacher) => setAvailTeacher(t)}
             onEditTeacher={(t: Teacher) => setEditTeacher(t)}
             filterTeacherId={filterTeacherId}
+            onSectionDrop={handleTeacherGridDrop}
           />
         )}
         {vm === "rooms" && <RoomGrid schedule={activeVariant as SingleScheduleResult} config={config} />}

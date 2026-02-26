@@ -334,15 +334,33 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
 
   const toUniv = (pid: string | number) => `FY-ALL-${pid}`;
 
+  // Returns all strategy-specific slot IDs for a period ID under the active schedule type.
+  // Pre-blocking (lunch, PLC, recess, availability) must use these so that constraints
+  // are checked against the same slot key format the strategy generates.
+  const getStrategySlots = (pid: string | number, schedType: string): string[] => {
+    const p = String(pid);
+    switch (schedType) {
+      case "ab_block":       return [`FY-A-${p}`, `FY-B-${p}`];
+      case "4x4_block":     return [`S1-ALL-${p}`, `S2-ALL-${p}`];
+      case "trimester":     return [`T1-ALL-${p}`, `T2-ALL-${p}`, `T3-ALL-${p}`];
+      case "modified_block": return [`STD-ALL-${p}`, `BLK-ALL-${p}`];
+      default:              return [`FY-ALL-${p}`];
+    }
+  };
+
+  const schedType = config.scheduleType || "standard";
+
   if (lunchStyle === "unit" && lunchPid) {
-    teachers.forEach(t => tracker.blockTeacher(t.id, toUniv(lunchPid), "LUNCH"));
+    const lunchSlots = getStrategySlots(lunchPid, schedType);
+    teachers.forEach(t => lunchSlots.forEach(slot => tracker.blockTeacher(t.id, slot, "LUNCH")));
   } else if (isMultiPeriod && multiLunchPids.length > 0) {
     const depts = [...new Set(teachers.map(t => (t.departments && t.departments[0]) || "General"))];
     depts.forEach(dept => {
       const deptTeachers = teachers.filter(t => (t.departments && t.departments[0]) === dept);
       deptTeachers.forEach((t, i) => {
         const assignedLunchPid = multiLunchPids[i % multiLunchPids.length];
-        tracker.blockTeacher(t.id, toUniv(assignedLunchPid), "LUNCH");
+        const lunchSlots = getStrategySlots(assignedLunchPid, schedType);
+        lunchSlots.forEach(slot => tracker.blockTeacher(t.id, slot, "LUNCH"));
       });
     });
     logger.info(`Distributed teachers across multiple lunch periods: ${multiLunchPids.join(", ")}`);
@@ -365,8 +383,9 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
       finalPlcGroups = config.plcGroups || [];
       
       finalPlcGroups.forEach(group => {
+        const plcSlots = getStrategySlots(group.period, schedType);
         (group.teacherIds || []).forEach((tid: string) => {
-          tracker.blockTeacher(tid, toUniv(group.period), "PLC");
+          plcSlots.forEach(slot => tracker.blockTeacher(tid, slot, "PLC"));
         });
       });
     } else {
@@ -388,8 +407,9 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
         };
         finalPlcGroups.push(newGroup);
 
+        const plcSlots = getStrategySlots(plcPid, schedType);
         deptTeachers.forEach(t => {
-          tracker.blockTeacher(t.id, toUniv(plcPid), "PLC");
+          plcSlots.forEach(slot => tracker.blockTeacher(t.id, slot, "PLC"));
         });
         logger.info(`Assigned Period ${plcPid} as Common PLC for ${dept} Department (${deptTeachers.length} teachers).`);
       });
@@ -399,7 +419,9 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
   if (config.teacherAvailability && config.teacherAvailability.length > 0) {
     config.teacherAvailability.forEach(avail => {
       avail.blockedPeriods.forEach((pid: string | number) => {
-        tracker.blockTeacher(avail.teacherId, toUniv(pid), "BLOCKED");
+        getStrategySlots(pid, schedType).forEach(slot =>
+          tracker.blockTeacher(avail.teacherId, slot, "BLOCKED")
+        );
       });
     });
     logger.info(`Applied custom availability blocks for ${config.teacherAvailability.length} teachers.`);
@@ -407,7 +429,11 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
 
   constraints.forEach(c => {
     if (c.type === "teacher_unavailable") {
-      if (c.teacherId) tracker.blockTeacher(c.teacherId, toUniv(Number(c.period)), "BLOCKED");
+      if (c.teacherId) {
+        getStrategySlots(Number(c.period), schedType).forEach(slot =>
+          tracker.blockTeacher(c.teacherId!, slot, "BLOCKED")
+        );
+      }
     }
   });
 
@@ -420,12 +446,15 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
       let bestPid: string | number = validPlanPids[0];
       let minBlocked = Infinity;
       validPlanPids.forEach(pid => {
-        const blocked = team.teacherIds.filter(
-          tid => !tracker.isTeacherAvailable(tid, toUniv(pid))
-        ).length;
+        // A teacher is "blocked" in this period if ANY strategy slot for it is unavailable
+        const blocked = team.teacherIds.filter(tid => {
+          const slots = getStrategySlots(pid, schedType);
+          return slots.some(slot => !tracker.isTeacherAvailable(tid, slot));
+        }).length;
         if (blocked < minBlocked) { minBlocked = blocked; bestPid = pid; }
       });
-      team.teacherIds.forEach(tid => tracker.blockTeacher(tid, toUniv(bestPid), "PLAN"));
+      const planSlots = getStrategySlots(bestPid, schedType);
+      team.teacherIds.forEach(tid => planSlots.forEach(slot => tracker.blockTeacher(tid, slot, "PLAN")));
       logger.info(`Team '${team.name}': common planning period → Period ${bestPid}`);
     });
   }
@@ -691,6 +720,19 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
         const share = 1 / (electiveCourses.length || 1);
         num = Math.max(1, Math.ceil((totalElectiveDemand * share) / size));
       }
+
+      // Cap section count to what the available teachers can actually handle.
+      // Without this, the engine generates sections it can never assign a teacher to,
+      // causing avoidable "No Teacher" gridlock conflicts.
+      const teachersForDept = teachers.filter(t => (t.departments || []).includes(c.department));
+      if (teachersForDept.length > 0) {
+        const supplyCap = teachersForDept.length * dailyMaxLoad;
+        if (num > supplyCap) {
+          logger.warn(`Capped ${c.name} from ${num} to ${supplyCap} sections (teacher supply: ${teachersForDept.length} × ${dailyMaxLoad} max load)`);
+          num = supplyCap;
+        }
+      }
+
       courseSectionCounts.set(c.id, num);
       grandTotalSections += num;
     });
@@ -745,15 +787,23 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
   constraints.forEach(c => {
     if(c.type === "lock_period" && c.sectionId) {
       const s = sections.find(x=>x.id === c.sectionId);
-      if(s) { 
-        s.period = toUniv(Number(c.period)); 
-        s.locked = true; 
+      if(s) {
+        // Use the first strategy slot for the period (e.g. S1 for 4x4, A-day for AB block).
+        // A locked section occupies a single slot — pick the primary term so it lands
+        // in a slot the active strategy actually generates.
+        const stratSlots = getStrategySlots(Number(c.period), schedType);
+        s.period = stratSlots[0];
+        s.locked = true;
       }
     }
   });
 
   sections.filter(s=>s.locked && s.period).forEach(s => {
-    tracker.assignPlacement(s, s.period!, s.teacher || "", s.coTeacher || null, s.room || "", 'FY');
+    const slot = String(s.period);
+    const term = slot.startsWith("S1") ? "S1" : slot.startsWith("S2") ? "S2" :
+                 slot.startsWith("T1") ? "T1" : slot.startsWith("T2") ? "T2" :
+                 slot.startsWith("T3") ? "T3" : "FY";
+    tracker.assignPlacement(s, s.period!, s.teacher || "", s.coTeacher || null, s.room || "", term);
   });
 
   let strategy: BaseStrategy;
@@ -880,27 +930,41 @@ export function generateSchedule(config: EngineConfig, onProgress?: (msg: string
   });
 
   // --- EXPLICITLY MARK PLAN PERIODS ---
-  // After placement, any unoccupied class period for a teacher is their Plan period.
+  // After placement, any unoccupied class period slot for a teacher is their Plan period.
   // Mark them explicitly so grids can display "Plan" reliably.
-  const classPeriodUnivIds = periodList
-    .filter(p => p.type === "class" || p.type === "split_lunch")
-    .map(p => String(toUniv(p.id)));
+  // For multi-term types (AB, 4x4, trimester, modified block), each period has multiple
+  // strategy slots (e.g. A-day and B-day for AB block), so we must mark each slot
+  // individually using getStrategySlots().
+  const classPeriodList = periodList.filter(p => p.type === "class" || p.type === "split_lunch");
+
+  // Term multiplier: how many strategy slots exist per period for the active schedule type.
+  // Used to scale the free-period count for the plan-violation check.
+  const termMultiplier =
+    schedType === "ab_block" ? 2 :
+    schedType === "4x4_block" ? 2 :
+    schedType === "trimester" ? 3 :
+    schedType === "modified_block" ? 2 : 1;
+
+  const totalTeachableSlots = effectiveSlots * termMultiplier;
+  const expectedFreeSlots = (safePlanPeriods + plcExtraSlots) * termMultiplier;
 
   teachers.forEach(t => {
     const sched = tracker.teacherSchedule[t.id] || {};
-    const teaching = Object.keys(sched).filter(k => !["LUNCH", "PLC", "PLAN", "BLOCKED", "RECESS"].includes(sched[k])).length;
-    const free = effectiveSlots - teaching;
 
-    const expectedFree = safePlanPeriods + plcExtraSlots;
-    if (free < expectedFree) {
-      conflicts.push({ type: "plan_violation", message: `${t.name} has ${free} free periods (needs ${expectedFree} for Plan/PLC)`, teacherId: t.id });
+    const teachingSlots = Object.keys(sched).filter(
+      k => !["LUNCH", "PLC", "PLAN", "BLOCKED", "RECESS"].includes(sched[k])
+    ).length;
+    const freeSlots = totalTeachableSlots - teachingSlots;
+
+    if (freeSlots < expectedFreeSlots) {
+      conflicts.push({ type: "plan_violation", message: `${t.name} has ${freeSlots} free periods (needs ${expectedFreeSlots} for Plan/PLC)`, teacherId: t.id });
     }
 
-    // Mark unoccupied class periods as PLAN
-    classPeriodUnivIds.forEach(univId => {
-      if (!sched[univId]) {
-        tracker.blockTeacher(t.id, univId, "PLAN");
-      }
+    // Mark every unoccupied strategy slot for each class period as PLAN
+    classPeriodList.forEach(p => {
+      getStrategySlots(p.id, schedType).forEach(slot => {
+        if (!sched[slot]) tracker.blockTeacher(t.id, slot, "PLAN");
+      });
     });
   });
 

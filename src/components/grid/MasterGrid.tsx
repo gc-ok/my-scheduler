@@ -22,7 +22,7 @@ interface SecCardProps {
 
 export const SecCard = ({ section: s, dragItem, onDragStart, togLock, setEditSection, onConflictClick }: SecCardProps) => {
   const deptColor = getDeptColor(s.department);
-  const bg = s.hasConflict ? "#FFF0F0" : `${deptColor}15`; 
+  const bg = s.hasConflict ? "#FFF0F0" : `${deptColor}15`;
   const borderLeftColor = s.hasConflict ? COLORS.danger : deptColor;
   const borderOtherColor = s.hasConflict ? COLORS.danger : s.locked ? COLORS.accent : "transparent";
 
