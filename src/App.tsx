@@ -9,6 +9,8 @@ import { useScheduleWorker } from "./hooks/useScheduleWorker";
 import { useSessionRestore } from "./hooks/useSessionRestore";
 import { useScheduleExport } from "./hooks/useScheduleExport";
 import css from "./App.module.css";
+// BETA: remove the next line (and all <FeedbackButton /> usages) when out of beta
+import FeedbackButton from "./components/ui/FeedbackButton";
 
 export default function App() {
   // Select state and actions from the Zustand store
@@ -98,6 +100,7 @@ export default function App() {
           <div className={css.progressFill} style={{ width: `${genProgress.pct}%` }} />
         </div>
         <p className={css.progressText}>{genProgress.msg} ({genProgress.pct}%)</p>
+        <FeedbackButton />
       </div>
     );
   }
@@ -121,6 +124,7 @@ export default function App() {
             </button>
           </div>
         </div>
+        <FeedbackButton />
       </div>
     );
   }
@@ -150,6 +154,7 @@ export default function App() {
         <ErrorBoundary>
           <ScheduleGridView schedule={schedule} config={config} setSchedule={setSchedule} onRegenerate={regen} onBackToConfig={() => setStep(9)} onExport={(fmt) => exportCSV(fmt)} />
         </ErrorBoundary>
+        <FeedbackButton />
       </div>
     );
   }
@@ -158,6 +163,7 @@ export default function App() {
     <div className={css.root}>
       {errorState && <ErrorModal />}
       <WizardController step={step} maxStep={maxStep} setStep={setStep} config={config} setConfig={setConfig} onComplete={generate} />
+      <FeedbackButton />
     </div>
   );
 }
